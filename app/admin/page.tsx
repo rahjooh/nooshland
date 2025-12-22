@@ -42,7 +42,13 @@ export default function AdminPage() {
   }
 
   const handleEdit = (item: MenuItem) => {
-    setFormData(item)
+    setFormData({
+      name: item.name,
+      price: item.price.toString(),
+      category: item.category,
+      description: item.description,
+      image: item.image
+    })
     setEditingId(item.id)
   }
 
