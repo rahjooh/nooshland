@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>کافه لوکس - تجربه‌ای فراموش‌نشدنی</title>
+    <meta name="description" content="کافه و رستوران لوکس با بهترین منوی کافه و فست فود، طراحی شیک و مدرن">
+    <meta name="keywords" content="کافه،رستوران،لوکس،منو،فست فود،قهوه،غذا">
+    <meta name="author" content="کافه لوکس">
+    <meta property="og:title" content="کافه لوکس">
+    <meta property="og:description" content="تجربه‌ای فراموش‌نشدنی در کافه و رستوران لوکس">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <script src="https://cdn.jsdelivr.net/npm/react@18.0.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.0.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"></link>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Cairo', sans-serif;
+            overflow-x: hidden;
+        }
+        
+        .playfair {
+            font-family: 'Playfair Display', serif;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .shimmer {
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        .floating {
+            animation: floating 3s ease-in-out infinite;
+        }
+        
+        @keyframes floating {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+        
+        .pulse-glow {
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+            50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
+        }
+        
+        .slide-in-right {
+            animation: slideInRight 0.6s ease-out;
+        }
+        
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .slide-in-left {
+            animation: slideInLeft 0.6s ease-out;
+        }
+        
+        @keyframes slideInLeft {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .rotate-3d {
+            animation: rotate3d 20s linear infinite;
+        }
+        
+        @keyframes rotate3d {
+            from { transform: rotateY(0deg); }
+            to { transform: rotateY(360deg); }
+        }
+        
+        .parallax-bg {
+            background-attachment: fixed;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: cover;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Custom Hook for animations
+        const useIntersectionObserver = (ref, options = {}) => {
+            const [isVisible, setIsVisible] = useState(false);
+            
+            useEffect(() => {
+                const observer = new IntersectionObserver(([entry]) => {
+                    setIsVisible(entry.isIntersecting);
+                }, options);
+                
+                if (ref.current) {
+                    observer.observe(ref.current);
+                }
+                
+                return () => {
+                    if (ref.current) {
+                        observer.unobserve(ref.current);
+                    }
+                };
+            }, [ref, options]);
+            
+            return isVisible;
+        };
+
+        // Reusable Components
+        const NavItem = ({ text, active = false, onClick }) => (
+            <motion.div
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className={`cursor-pointer px-4 py-2 rounded-full transition-all duration-300 ${
+                    active 
+                        ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-lg' 
+                        : 'text-gray-300 hover:text-white hover:bg-white/10'
+                }`}
+                onClick={onClick}
+            >
+                {text}
+            </motion.div>
+        );
+
+        const MenuItem = ({ item, index }) => {
+            const ref = React.useRef(null);
+            const isVisible = useIntersectionObserver(ref, { threshold: 0.1 });
+            
+            return (
+                <motion.div
+                    ref={ref}
+                    initial={{ opacity: 0, y: 50, rotate: -5 }}
+                    animate={isVisible ? { opacity: 1, y: 0, rotate: 0 } : {}}
+                    transition={{ duration: 0.6, delay: index * 0.1 }}
+                    className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl overflow-hidden hover:shadow-3xl transform hover:scale-105 transition-all duration-300"
+                >
+                    <div className="relative">
+                        <img 
+                            src={item.image} 
+                            alt={item.name}
+                            className="w-full h-64 object-cover"
+                        />
+                        <div className="absolute top-4 right-4 bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-1 rounded-full font-bold text-sm">
+                            {item.price.toLocaleString('fa-IR')} تومان
+                        </div>
+                        <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full text-xs">
+                            {item.category}
+                        </div>
+                    </div>
+                    <div className="p-6">
+                        <h3 className="text-2xl font-bold mb-2 playfair">{item.name}</h3>
+                        <p className="text-gray-600 mb-4">{item.description}</p>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                                <div className="flex text-yellow-400">
+                                    {[...Array(5)].map((_, i) => (
+                                        <i key={i} className="fas fa-star"></i>
+                                    ))}
+                                </div>
+                                <span className="text-sm text-gray-500">بسیار محبوب</span>
+                            </div>
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-6 py-2 rounded-full font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+                            >
+                                مشاهده بیشتر
+                            </motion.button>
+                        </div>
+                    </div>
+                </motion.div>
+            );
+        };
+
+        const AnimatedSection = ({ children, className = "" }) => {
+            const ref = React.useRef(null);
+            const isVisible = useIntersectionObserver(ref, { threshold: 0.1 });
+            
+            return (
+                <motion.div
+                    ref={ref}
+                    initial={{ opacity: 0, y: 50 }}
+                    animate={isVisible ? { opacity: 1, y: 0 } : {}}
+                    transition={{ duration: 0.8 }}
+                    className={className}
+                >
+                    {children}
+                </motion.div>
+            );
+        };
+
+        const AdminPanel = () => {
+            const [menuItems, setMenuItems] = useState([
+                { id: 1, name: 'اسپرسو ویژه', price: 35000, category: 'کافه', description: 'قهوه ایتالیایی با طعم غنی', image: 'https://picsum.photos/id/1/400/300' },
+                { id: 2, name: 'برگر لوکس', price: 85000, category: 'فست فود', description: 'برگر تازه با گوشت گوساله و سبزیجات', image: 'https://picsum.photos/id/5/400/300' },
+                { id: 3, name: 'کاپوچینو کریسمس', price: 45000, category: 'کافه', description: 'قهوه با فوم شیر و کاکائو', image: 'https://picsum.photos/id/2/400/300' },
+                { id: 4, name: 'پاستا آلفردو', price: 95000, category: 'فست فود', description: 'پاستا با سس خامه‌ای و پنیر', image: 'https://picsum.photos/id/8/400/300' }
+            ]);
+            
+            const [formData, setFormData] = useState({
+                name: '',
+                price: '',
+                category: 'کافه',
+                description: '',
+                image: ''
+            });
+            
+            const [editingId, setEditingId] = useState(null);
+            const [password, setPassword] = useState('');
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (editingId) {
+                    setMenuItems(items =>
+                        items.map(item =>
+                            item.id === editingId
+                                ? { ...item, ...formData }
+                                : item
+                        )
+                    );
+                } else {
+                    const newItem = {
+                        id: Date.now(),
+                        ...formData,
+                        price: parseInt(formData.price)
+                    };
+                    setMenuItems([...menuItems, newItem]);
+                }
+                setFormData({ name: '', price: '', category: 'کافه', description: '', image: '' });
+                setEditingId(null);
+            };
+
+            const handleEdit = (item) => {
+                setFormData(item);
+                setEditingId(item.id);
+            };
+
+            const handleDelete = (id) => {
+                setMenuItems(items => items.filter(item => item.id !== id));
+            };
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (password === 'admin123') {
+                    setIsLoggedIn(true);
+                }
+            };
+
+            if (!isLoggedIn) {
+                return (
+                    <div className="min-h-screen gradient-bg flex items-center justify-center">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-white/10 backdrop-blur-lg p-8 rounded-3xl shadow-2xl w-full max-w-md"
+                        >
+                            <h2 className="text-3xl font-bold text-white mb-6 text-center playfair">پنل مدیریت</h2>
+                            <form onSubmit={handleLogin} className="space-y-4">
+                                <div>
+                                    <label className="block text-white mb-2">رمز عبور</label>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-full bg-white/20 text-white placeholder-gray-300 border border-white/30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                        placeholder="رمز عبور"
+                                    />
+                                </div>
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    type="submit"
+                                    className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all duration-300"
+                                >
+                                    ورود
+                                </motion.button>
+                            </form>
+                        </motion.div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gray-900 text-white">
+                    <div className="bg-gradient-to-r from-yellow-400 to-orange-500 p-4">
+                        <div className="flex justify-between items-center">
+                            <h1 className="text-2xl font-bold">پنل مدیریت کافه لوکس</h1>
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setIsLoggedIn(false)}
+                                className="bg-white/20 px-4 py-2 rounded-full"
+                            >
+                                خروج
+                            </motion.button>
+                        </div>
+                    </div>
+                    
+                    <div className="p-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="lg:col-span-1">
+                                <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6">
+                                    <h2 className="text-xl font-bold mb-4">اضافه کردن/ویرایش محصول</h2>
+                                    <form onSubmit={handleSubmit} className="space-y-4">
+                                        <input
+                                            type="text"
+                                            placeholder="نام محصول"
+                                            value={formData.name}
+                                            onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                            className="w-full px-4 py-3 rounded-full bg-white/20 text-white placeholder-gray-300 border border-white/30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                            required
+                                        />
+                                        <input
+                                            type="number"
+                                            placeholder="قیمت"
+                                            value={formData.price}
+                                            onChange={(e) => setFormData({...formData, price: e.target.value})}
+                                            className="w-full px-4 py-3 rounded-full bg-white/20 text-white placeholder-gray-300 border border-white/30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                            required
+                                        />
+                                        <select
+                                            value={formData.category}
+                                            onChange={(e) => setFormData({...formData, category: e.target.value})}
+                                            className="w-full px-4 py-3 rounded-full bg-white/20 text-white border border-white/30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                        >
+                                            <option value="کافه">کافه</option>
+                                            <option value="فست فود">فست فود</option>
+                                            <option value="دسر">دسر</option>
+                                            <option value="نوشیدنی">نوشیدنی</option>
+                                        </select>
+                                        <textarea
+                                            placeholder="توضیحات"
+                                            value={formData.description}
+                                            onChange={(e) => setFormData({...formData, description: e.target.value})}
+                                            className="w-full px-4 py-3 rounded-2xl bg-white/20 text-white placeholder-gray-300 border border-white/30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                            rows="3"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="لینک تصویر"
+                                            value={formData.image}
+                                            onChange={(e) => setFormData({...formData, image: e.target.value})}
+                                            className="w-full px-4 py-3 rounded-full bg-white/20 text-white placeholder-gray-300 border border-white/30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                            required
+                                        />
+                                        <div className="flex space-x-2">
+                                            <motion.button
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                type="submit"
+                                                className="flex-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-white py-3 rounded-full font-bold"
+                                            >
+                                                {editingId ? 'ویرایش' : 'اضافه کردن'}
+                                            </motion.button>
+                                            {editingId && (
+                                                <motion.button
+                                                    whileHover={{ scale: 1.05 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setEditingId(null);
+                                                        setFormData({ name: '', price: '', category: 'کافه', description: '', image: '' });
+                                                    }}
+                                                    className="flex-1 bg-gray-600 text-white py-3 rounded-full font-bold"
+                                                >
+                                                    لغو
+                                                </motion.button>
+                                            )}
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            
+                            <div className="lg:col-span-2">
+                                <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6">
+                                    <h2 className="text-xl font-bold mb-4">لیست محصولات</h2>
+                                    <div className="space-y-4">
+                                        {menuItems.map((item, index) => (
+                                            <motion.div
+                                                key={item.id}
+                                                initial={{ opacity: 0, x: -20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ duration: 0.3, delay: index * 0.05 }}
+                                                className="bg-white/5 rounded-xl p-4 flex items-center justify-between"
+                                            >
+                                                <div className="flex items-center space-x-4">
+                                                    <img src={item.image} alt={item.name} className="w-16 h-16 rounded-lg object-cover" />
+                                                    <div>
+                                                        <h3 className="font-bold">{item.name}</h3>
+                                                        <p className="text-sm text-gray-300">{item.category}</p>
+                                                        <p className="text-yellow-400 font-bold">{item.price.toLocaleString('fa-IR')} تومان</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex space-x-2">
+                                                    <motion.button
+                                                        whileHover={{ scale: 1.1 }}
+                                                        whileTap={{ scale: 0.9 }}
+                                                        onClick={() => handleEdit(item)}
+                                                        className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full border border-blue-400"
+                                                    >
+                                                        ویرایش
+                                                    </motion.button>
+                                                    <motion.button
+                                                        whileHover={{ scale: 1.1 }}
+                                                        whileTap={{ scale: 0.9 }}
+                                                        onClick={() => handleDelete(item.id)}
+                                                        className="bg-red-500/20 text-red-400 px-3 py-1 rounded-full border border-red-400"
+                                                    >
+                                                        حذف
+                                                    </motion.button>
+                                                </div>
+                                            </motion.div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [currentPage, setCurrentPage] = useState('home');
+            const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+            
+            const menuItems = [
+                { id: 1, name: 'اسپرسو ویژه', price: 35000, category: 'کافه', description: 'قهوه ایتالیایی با طعم غنی و خامه‌ای', image: 'https://picsum.photos/id/1/400/300' },
+                { id: 2, name: 'برگر لوکس', price: 85000, category: 'فست فود', description: 'برگر تازه با گوشت گوساله و سبزیجات تازه', image: 'https://picsum.photos/id/5/400/300' },
+                { id: 3, name: 'کاپوچینو کریسمس', price: 45000, category: 'کافه', description: 'قهوه با فوم شیر و کاکائو و تزئینات ویژه', image: 'https://picsum.photos/id/2/400/300' },
+                { id: 4, name: 'پاستا آلفردو', price: 95000, category: 'فست فود', description: 'پاستا با سس خامه‌ای و پنیر پارمیژان', image: 'https://picsum.photos/id/8/400/300' },
+                { id: 5, name: 'لاته آرتیستیک', price: 42000, category: 'کافه', description: 'قهوه با شیر گرم و نقش‌های هنری روی فوم', image: 'https://picsum.photos/id/3/400/300' },
+                { id: 6, name: 'ساندویچ مرغ ویژه', price: 65000, category: 'فست فود', description: 'ساندویچ مرغ با سبزیجات تازه و سس مخصوص', image: 'https://picsum.photos/id/7/400/300' }
+            ];
+
+            const cafeItems = menuItems.filter(item => item.category === 'کافه');
+            const fastFoodItems = menuItems.filter(item => item.category === 'فست فود');
+
+            const renderPage = () => {
+                switch(currentPage) {
+                    case 'cafe':
+                        return (
+                            <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+                                <AnimatedSection className="py-16">
+                                    <div className="container mx-auto px-4">
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -50 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-center mb-12"
+                                        >
+                                            <h1 className="text-5xl font-bold text-gray-800 mb-4 playfair">منوی کافه</h1>
+                                            <p className="text-xl text-gray-600">تجربه بهترین نوشیدنی‌های داغ و سرد</p>
+                                        </motion.div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                            {cafeItems.map((item, index) => (
+                                                <MenuItem key={item.id} item={item} index={index} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </AnimatedSection>
+                            </div>
+                        );
+                    case 'fastfood':
+                        return (
+                            <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+                                <AnimatedSection className="py-16">
+                                    <div className="container mx-auto px-4">
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -50 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-center mb-12"
+                                        >
+                                            <h1 className="text-5xl font-bold text-gray-800 mb-4 playfair">منوی فست فود</h1>
+                                            <p className="text-xl text-gray-600">طعم‌های خوشمزه و سریع</p>
+                                        </motion.div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                            {fastFoodItems.map((item, index) => (
+                                                <MenuItem key={item.id} item={item} index={index} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </AnimatedSection>
+                            </div>
+                        );
+                    case 'about':
+                        return (
+                            <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+                                <AnimatedSection className="py-16">
+                                    <div className="container mx-auto px-4">
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -50 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-center mb-12"
+                                        >
+                                            <h1 className="text-5xl font-bold text-gray-800 mb-4 playfair">درباره ما</h1>
+                                            <p className="text-xl text-gray-600">داستان کافه لوکس</p>
+                                        </motion.div>
+                                        
+                                        <div className="max-w-4xl mx-auto bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8">
+                                            <motion.div
+                                                initial={{ opacity: 0, x: -50 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ duration: 0.8 }}
+                                                className="mb-8"
+                                            >
+                                                <h2 className="text-3xl font-bold mb-4 playfair">ما کی هستیم؟</h2>
+                                                <p className="text-lg text-gray-600 leading-relaxed">
+                                                    کافه لوکس از سال ۲۰۲۰ با هدف ارائه تجربه‌ای فراموش‌نشدنی به مشتریان آغاز به کار کرد. 
+                                                    ما با ترکیب بهترین مواد اولیه و هنر آشپزی مدرن، تلاش کرده‌ایم تا بهترین طعم‌ها را به شما هدیه دهیم. 
+                                                    تیم ما متشکل از بهترین چای‌سازان و آشپزهای حرفه‌ای است که هر روز با عشق و اشتیاق برای شما کار می‌کنند.
+                                                </p>
+                                            </motion.div>
+                                            
+                                            <motion.div
+                                                initial={{ opacity: 0, x: 50 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ duration: 0.8, delay: 0.2 }}
+                                                className="grid grid-cols-1 md:grid-cols-3 gap-6"
+                                            >
+                                                <div className="text-center p-6 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl">
+                                                    <div className="text-4xl text-yellow-500 mb-4">
+                                                        <i className="fas fa-coffee"></i>
+                                                    </div>
+                                                    <h3 className="text-xl font-bold mb-2">کیفیت</h3>
+                                                    <p className="text-gray-600">بهترین مواد اولیه</p>
+                                                </div>
+                                                <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl">
+                                                    <div className="text-4xl text-blue-500 mb-4">
+                                                        <i className="fas fa-star"></i>
+                                                    </div>
+                                                    <h3 className="text-xl font-bold mb-2">خدمات</h3>
+                                                    <p className="text-gray-600">خدمات عالی</p>
+                                                </div>
+                                                <div className="text-center p-6 bg-gradient-to-br from-green-50 to-teal-50 rounded-2xl">
+                                                    <div className="text-4xl text-green-500 mb-4">
+                                                        <i className="fas fa-leaf"></i>
+                                                    </div>
+                                                    <h3 className="text-xl font-bold mb-2">محیط</h3>
+                                                    <p className="text-gray-600">محیط آرامش‌بخش</p>
+                                                </div>
+                                            </motion.div>
+                                        </div>
+                                    </div>
+                                </AnimatedSection>
+                            </div>
+                        );
+                    case 'contact':
+                        return (
+                            <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+                                <AnimatedSection className="py-16">
+                                    <div className="container mx-auto px-4">
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -50 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-center mb-12"
+                                        >
+                                            <h1 className="text-5xl font-bold text-gray-800 mb-4 playfair">تماس با ما</h1>
+                                            <p className="text-xl text-gray-600">ما همیشه در دسترس هستیم</p>
+                                        </motion.div>
+                                        
+                                        <div className="max-w-4xl mx-auto bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8">
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -50 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ duration: 0.8 }}
+                                                className="grid grid-cols-1 md:grid-cols-2 gap-8"
+                                            >
+                                                <div>
+                                                    <h2 className="text-2xl font-bold mb-4 playfair">اطلاعات تماس</h2>
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center space-x-3">
+                                                            <i className="fas fa-map-marker-alt text-yellow-500 text-xl"></i>
+                                                            <span>تهران، میدان آزادی، خیابان ولیعصر، پلاک ۱۲۳</span>
+                                                        </div>
+                                                        <div className="flex items-center space-x-3">
+                                                            <i className="fas fa-phone text-yellow-500 text-xl"></i>
+                                                            <span>021-12345678</span>
+                                                        </div>
+                                                        <div className="flex items-center space-x-3">
+                                                            <i className="fas fa-envelope text-yellow-500 text-xl"></i>
+                                                            <span>info@cafelux.com</span>
+                                                        </div>
+                                                        <div className="flex items-center space-x-3">
+                                                            <i className="fas fa-clock text-yellow-500 text-xl"></i>
+                                                            <span>هر روز ۸ صبح تا ۱۲ شب</span>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="mt-8">
+                                                        <h3 className="text-xl font-bold mb-4">شبکه‌های اجتماعی</h3>
+                                                        <div className="flex space-x-4">
+                                                            <motion.a
+                                                                whileHover={{ scale: 1.2 }}
+                                                                whileTap={{ scale: 0.9 }}
+                                                                href="#"
+                                                                className="text-2xl text-gray-600 hover:text-yellow-500 transition-colors"
+                                                            >
+                                                                <i className="fab fa-instagram"></i>
+                                                            </motion.a>
+                                                            <motion.a
+                                                                whileHover={{ scale: 1.2 }}
+                                                                whileTap={{ scale: 0.9 }}
+                                                                href="#"
+                                                                className="text-2xl text-gray-600 hover:text-yellow-500 transition-colors"
+                                                            >
+                                                                <i className="fab fa-facebook"></i>
+                                                            </motion.a>
+                                                            <motion.a
+                                                                whileHover={{ scale: 1.2 }}
+                                                                whileTap={{ scale: 0.9 }}
+                                                                href="#"
+                                                                className="text-2xl text-gray-600 hover:text-yellow-500 transition-colors"
+                                                            >
+                                                                <i className="fab fa-twitter"></i>
+                                                            </motion.a>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div>
+                                                    <h2 className="text-2xl font-bold mb-4 playfair">فرم تماس</h2>
+                                                    <form className="space-y-4">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="نام و نام خانوادگی"
+                                                            className="w-full px-4 py-3 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                                        />
+                                                        <input
+                                                            type="email"
+                                                            placeholder="ایمیل"
+                                                            className="w-full px-4 py-3 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                                        />
+                                                        <textarea
+                                                            placeholder="پیام شما"
+                                                            rows="4"
+                                                            className="w-full px-4 py-3 rounded-2xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                                        ></textarea>
+                                                        <motion.button
+                                                            whileHover={{ scale: 1.05 }}
+                                                            whileTap={{ scale: 0.95 }}
+                                                            type="submit"
+                                                            className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all duration-300"
+                                                        >
+                                                            ارسال پیام
+                                                        </motion.button>
+                                                    </form>
+                                                </div>
+                                            </motion.div>
+                                        </div>
+                                    </div>
+                                </AnimatedSection>
+                            </div>
+                        );
+                    case 'admin':
+                        return <AdminPanel />;
+                    default:
+                        return (
+                            <div className="min-h-screen gradient-bg">
+                                {/* Hero Section */}
+                                <AnimatedSection className="relative overflow-hidden">
+                                    <div className="absolute inset-0">
+                                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/10 to-transparent rotate-3d"></div>
+                                        <div className="absolute top-20 left-10 w-32 h-32 bg-yellow-400/20 rounded-full blur-3xl floating"></div>
+                                        <div className="absolute bottom-20 right-10 w-48 h-48 bg-orange-500/20 rounded-full blur-3xl floating" style={{animationDelay: '1s'}}></div>
+                                    </div>
+                                    
+                                    <div className="container mx-auto px-4 py-20">
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 50 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ duration: 0.8 }}
+                                            className="text-center text-white"
+                                        >
+                                            <motion.div
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                transition={{ duration: 0.6, delay: 0.2 }}
+                                                className="inline-block mb-8"
+                                            >
+                                                <div className="w-32 h-32 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-2xl pulse-glow">
+                                                    <i className="fas fa-coffee text-5xl"></i>
+                                                </div>
+                                            </motion.div>
+                                            
+                                            <h1 className="text-6xl font-bold mb-4 playfair">کافه لوکس</h1>
+                                            <p className="text-2xl mb-8">تجربه‌ای فراموش‌نشدنی</p>
+                                            
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 30 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ duration: 0.8, delay: 0.4 }}
+                                                className="flex justify-center space-x-4"
+                                            >
+                                                <motion.button
+                                                    whileHover={{ scale: 1.1, rotate: 5 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                    onClick={() => setCurrentPage('cafe')}
+                                                    className="bg-white/20 backdrop-blur-sm px-8 py-3 rounded-full text-white font-bold border border-white/30 hover:bg-white/30 transition-all duration-300"
+                                                >
+                                                    مشاهده منو
+                                                </motion.button>
+                                                <motion.button
+                                                    whileHover={{ scale: 1.1, rotate: -5 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                    onClick={() => setCurrentPage('about')}
+                                                    className="bg-white/20 backdrop-blur-sm px-8 py-3 rounded-full text-white font-bold border border-white/30 hover:bg-white/30 transition-all duration-300"
+                                                >
+                                                    درباره ما
+                                                </motion.button>
+                                            </motion.div>
+                                        </motion.div>
+                                    </div>
+                                </AnimatedSection>
+
+                                {/* Features Section */}
+                                <AnimatedSection className="py-20">
+                                    <div className="container mx-auto px-4">
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -50 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-center mb-16"
+                                        >
+                                            <h2 className="text-4xl font-bold text-white mb-4 playfair">چرا ما؟</h2>
+                                            <p className="text-xl text-gray-300">تجربه‌ای متفاوت با بهترین کیفیت</p>
+                                        </motion.div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                            <motion.div
+                                                initial={{ opacity: 0, x: -50 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ duration: 0.6, delay: 0.2 }}
+                                                className="text-center p-8 bg-white/10 backdrop-blur-sm rounded-3xl hover:bg-white/20 transition-all duration-300"
+                                            >
+                                                <div className="text-5xl text-yellow-400 mb-4">
+                                                    <i className="fas fa-award"></i>
+                                                </div>
+                                                <h3 className="text-2xl font-bold mb-2 text-white playfair">کیفیت بالا</h3>
+                                                <p className="text-gray-300">بهترین مواد اولیه برای بهترین طعم</p>
+                                            </motion.div>
+                                            
+                                            <motion.div
+                                                initial={{ opacity: 0, x: 0 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ duration: 0.6, delay: 0.4 }}
+                                                className="text-center p-8 bg-white/10 backdrop-blur-sm rounded-3xl hover:bg-white/20 transition-all duration-300"
+                                            >
+                                                <div className="text-5xl text-yellow-400 mb-4">
+                                                    <i className="fas fa-clock"></i>
+                                                </div>
+                                                <h3 className="text-2xl font-bold mb-2 text-white playfair">سرو سریع</h3>
+                                                <p className="text-gray-300">سرویس سریع و به موقع</p>
+                                            </motion.div>
+                                            
+                                            <motion.div
+                                                initial={{ opacity: 0, x: 50 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ duration: 0.6, delay: 0.6 }}
+                                                className="text-center p-8 bg-white/10 backdrop-blur-sm rounded-3xl hover:bg-white/20 transition-all duration-300"
+                                            >
+                                                <div className="text-5xl text-yellow-400 mb-4">
+                                                    <i className="fas fa-heart"></i>
+                                                </div>
+                                                <h3 className="text-2xl font-bold mb-2 text-white playfair">عشق و اشتیاق</h3>
+                                                <p className="text-gray-300">ساخته شده با عشق و اشتیاق</p>
+                                            </motion.div>
+                                        </div>
+                                    </div>
+                                </AnimatedSection>
+
+                                {/* Menu Preview Section */}
+                                <AnimatedSection className="py-20">
+                                    <div className="container mx-auto px-4">
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -50 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-center mb-12"
+                                        >
+                                            <h2 className="text-4xl font-bold text-white mb-4 playfair">نمونه از منوی ما</h2>
+                                            <p className="text-xl text-gray-300">طعم‌های خوشمزه و لوکس</p>
+                                        </motion.div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                            {menuItems.slice(0, 4).map((item, index) => (
+                                                <motion.div
+                                                    key={item.id}
+                                                    initial={{ opacity: 0, scale: 0.8 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    transition={{ duration: 0.5, delay: index * 0.1 }}
+                                                    className="bg-white/10 backdrop-blur-sm rounded-2xl overflow-hidden hover:bg-white/20 transition-all duration-300"
+                                                >
+                                                    <img 
+                                                        src={item.image} 
+                                                        alt={item.name}
+                                                        className="w-full h-48 object-cover"
+                                                    />
+                                                    <div className="p-4">
+                                                        <h3 className="text-xl font-bold text-white mb-2 playfair">{item.name}</h3>
+                                                        <p className="text-yellow-400 font-bold text-lg">{item.price.toLocaleString('fa-IR')} تومان</p>
+                                                    </div>
+                                                </motion.div>
+                                            ))}
+                                        </div>
+                                        
+                                        <div className="text-center mt-8">
+                                            <motion.button
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                onClick={() => setCurrentPage('cafe')}
+                                                className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all duration-300"
+                                            >
+                                                مشاهده کامل منو
+                                            </motion.button>
+                                        </div>
+                                    </div>
+                                </AnimatedSection>
+
+                                {/* Testimonials Section */}
+                                <AnimatedSection className="py-20">
+                                    <div className="container mx-auto px-4">
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -50 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-center mb-12"
+                                        >
+                                            <h2 className="text-4xl font-bold text-white mb-4 playfair">نظرات مشتریان</h2>
+                                            <p className="text-xl text-gray-300">خبر خوب از مشتریان خوشحال</p>
+                                        </motion.div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                            <motion.div
+                                                initial={{ opacity: 0, x: -50 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ duration: 0.6, delay: 0.2 }}
+                                                className="bg-white/10 backdrop-blur-sm rounded-3xl p-6"
+                                            >
+                                                <div className="flex text-yellow-400 mb-4">
+                                                    {[...Array(5)].map((_, i) => (
+                                                        <i key={i} className="fas fa-star"></i>
+                                                    ))}
+                                                </div>
+                                                <p className="text-gray-300 mb-4 italic">
+                                                    "بهترین قهوه‌ای که تا به حال خورده‌ام. محیط بسیار آرامش‌بخش و پرسنل خوش‌برخورد."
+                                                </p>
+                                                <div className="flex items-center space-x-3">
+                                                    <div className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"></div>
+                                                    <div>
+                                                        <p className="font-bold text-white">سارا احمدی</p>
+                                                        <p className="text-sm text-gray-400">مشتری وفادار</p>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                            
+                                            <motion.div
+                                                initial={{ opacity: 0, x: 0 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ duration: 0.6, delay: 0.4 }}
+                                                className="bg-white/10 backdrop-blur-sm rounded-3xl p-6"
+                                            >
+                                                <div className="flex text-yellow-400 mb-4">
+                                                    {[...Array(5)].map((_, i) => (
+                                                        <i key={i} className="fas fa-star"></i>
+                                                    ))}
+                                                </div>
+                                                <p className="text-gray-300 mb-4 italic">
+                                                    "برگرهایشان فوق‌العاده است. هر بار که می‌آیم، طعم جدیدی را تجربه می‌کنم."
+                                                </p>
+                                                <div className="flex items-center space-x-3">
+                                                    <div className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"></div>
+                                                    <div>
+                                                        <p className="font-bold text-white">محمد رضایی</p>
+                                                        <p className="text-sm text-gray-400">کارمند شرکت</p>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                            
+                                            <motion.div
+                                                initial={{ opacity: 0, x: 50 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ duration: 0.6, delay: 0.6 }}
+                                                className="bg-white/10 backdrop-blur-sm rounded-3xl p-6"
+                                            >
+                                                <div className="flex text-yellow-400 mb-4">
+                                                    {[...Array(5)].map((_, i) => (
+                                                        <i key={i} className="fas fa-star"></i>
+                                                    ))}
+                                                </div>
+                                                <p className="text-gray-300 mb-4 italic">
+                                                    "سرویس بسیار سریع و محیط بسیار شیک. برای جلسات کاری عالی است."
+                                                </p>
+                                                <div className="flex items-center space-x-3">
+                                                    <div className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"></div>
+                                                    <div>
+                                                        <p className="font-bold text-white">فاطمه کریمی</p>
+                                                        <p className="text-sm text-gray-400">دانشجوی دانشگاه</p>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        </div>
+                                    </div>
+                                </AnimatedSection>
+                            </div>
+                        );
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    {/* Navigation */}
+                    <motion.nav
+                        initial={{ y: -100 }}
+                        animate={{ y: 0 }}
+                        className="fixed top-0 w-full z-50 glass-effect"
+                    >
+                        <div className="container mx-auto px-4">
+                            <div className="flex justify-between items-center h-16">
+                                <motion.div
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    className="flex items-center space-x-2"
+                                >
+                                    <div className="w-10 h-10 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                                        <i className="fas fa-coffee text-white"></i>
+                                    </div>
+                                    <span className="text-xl font-bold text-white playfair">کافه لوکس</span>
+                                </motion.div>
+                                
+                                <div className="hidden md:flex items-center space-x-6">
+                                    <NavItem text="خانه" active={currentPage === 'home'} onClick={() => setCurrentPage('home')} />
+                                    <NavItem text="کافه" active={currentPage === 'cafe'} onClick={() => setCurrentPage('cafe')} />
+                                    <NavItem text="فست فود" active={currentPage === 'fastfood'} onClick={() => setCurrentPage('fastfood')} />
+                                    <NavItem text="درباره ما" active={currentPage === 'about'} onClick={() => setCurrentPage('about')} />
+                                    <NavItem text="تماس با ما" active={currentPage === 'contact'} onClick={() => setCurrentPage('contact')} />
+                                    <motion.div
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => setCurrentPage('admin')}
+                                        className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-2 rounded-full cursor-pointer"
+                                    >
+                                        <i className="fas fa-user-shield mr-2"></i>
+                                        ادمین
+                                    </motion.div>
+                                </div>
+                                
+                                <div className="md:hidden">
+                                    <button
+                                        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                                        className="text-white"
+                                    >
+                                        <i className="fas fa-bars text-2xl"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Mobile Menu */}
+                        <motion.div
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: mobileMenuOpen ? 1 : 0, y: mobileMenuOpen ? 0 : -20 }}
+                            className={`md:hidden ${mobileMenuOpen ? 'block' : 'hidden'} bg-white/10 backdrop-blur-sm`}
+                        >
+                            <div className="px-4 py-2 space-y-2">
+                                <NavItem text="خانه" active={currentPage === 'home'} onClick={() => { setCurrentPage('home'); setMobileMenuOpen(false); }} />
+                                <NavItem text="کافه" active={currentPage === 'cafe'} onClick={() => { setCurrentPage('cafe'); setMobileMenuOpen(false); }} />
+                                <NavItem text="فست فود" active={currentPage === 'fastfood'} onClick={() => { setCurrentPage('fastfood'); setMobileMenuOpen(false); }} />
+                                <NavItem text="درباره ما" active={currentPage === 'about'} onClick={() => { setCurrentPage('about'); setMobileMenuOpen(false); }} />
+                                <NavItem text="تماس با ما" active={currentPage === 'contact'} onClick={() => { setCurrentPage('contact'); setMobileMenuOpen(false); }} />
+                                <motion.div
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => { setCurrentPage('admin'); setMobileMenuOpen(false); }}
+                                    className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-2 rounded-full cursor-pointer"
+                                >
+                                    <i className="fas fa-user-shield mr-2"></i>
+                                    ادمین
+                                </motion.div>
+                            </div>
+                        </motion.div>
+                    </motion.nav>
+                    
+                    {/* Main Content */}
+                    <div className="pt-20">
+                        {renderPage()}
+                    </div>
+                    
+                    {/* Footer */}
+                    <motion.footer
+                        initial={{ opacity: 0, y: 50 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-gray-900 text-white py-12"
+                    >
+                        <div className="container mx-auto px-4">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                                <div>
+                                    <h3 className="text-xl font-bold mb-4 playfair">کافه لوکس</h3>
+                                    <p className="text-gray-400">تجربه‌ای فراموش‌نشدنی</p>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold mb-4">منو</h4>
+                                    <ul className="space-y-2 text-gray-400">
+                                        <li><a href="#" className="hover:text-yellow-400 transition-colors">کافه</a></li>
+                                        <li><a href="#" className="hover:text-yellow-400 transition-colors">فست فود</a></li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold mb-4">لینک‌ها</h4>
+                                    <ul className="space-y-2 text-gray-400">
+                                        <li><a href="#" className="hover:text-yellow-400 transition-colors">درباره ما</a></li>
+                                        <li><a href="#" className="hover:text-yellow-400 transition-colors">تماس با ما</a></li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold mb-4">ارتباط</h4>
+                                    <div className="space-y-2 text-gray-400">
+                                        <p><i className="fas fa-phone mr-2"></i>021-12345678</p>
+                                        <p><i className="fas fa-envelope mr-2"></i>info@cafelux.com</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                                <p>&copy; 2024 کافه لوکس. تمام حقوق محفوظ است.</p>
+                            </div>
+                        </div>
+                    </motion.footer>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
