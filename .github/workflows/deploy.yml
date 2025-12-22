@@ -100,7 +100,7 @@ jobs:
             server {
                 listen 80;
                 listen [::]:80;
-                server_name nooshland.com nooshland.ir www.nooshland.com www.nooshland.ir;
+                server_name nooshland.ir www.nooshland.ir;
 
                 # Redirect HTTP to HTTPS
                 return 301 https://$host$request_uri;
@@ -109,10 +109,10 @@ jobs:
             server {
                 listen 443 ssl;
                 listen [::]:443 ssl;
-                server_name nooshland.com nooshland.ir www.nooshland.com www.nooshland.ir;
+                server_name nooshland.ir www.nooshland.ir;
 
-                ssl_certificate /etc/letsencrypt/live/nooshland.com/fullchain.pem;
-                ssl_certificate_key /etc/letsencrypt/live/nooshland.com/privkey.pem;
+                ssl_certificate /etc/letsencrypt/live/nooshland.ir/fullchain.pem;
+                ssl_certificate_key /etc/letsencrypt/live/nooshland.ir/privkey.pem;
 
                 ssl_protocols TLSv1.2 TLSv1.3;
                 ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256';
@@ -142,7 +142,7 @@ jobs:
             $SUDO systemctl restart nginx
 
   deploy:
-    name: Deploy to nooshland.com
+    name: Deploy to nooshland.ir
     runs-on: ubuntu-latest
     needs: ssh-test
     environment:

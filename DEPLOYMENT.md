@@ -1,12 +1,12 @@
 # Deployment Guide
 
-This project is configured to deploy to your host server on port 3005 and serve the domains `nooshland.com` and `nooshland.ir`.
+This project is configured to deploy to your host server on port 3005 and serve the domain `nooshland.ir`.
 
 ## Prerequisites
 
-1. **SSL Certificates**: Before deployment, ensure SSL certificates are generated for `nooshland.com`:
+1. **SSL Certificates**: Before deployment, ensure SSL certificates are generated for `nooshland.ir`:
    ```bash
-   sudo certbot certonly --nginx -d nooshland.com -d www.nooshland.com -d nooshland.ir -d www.nooshland.ir
+   sudo certbot certonly --nginx -d nooshland.ir -d www.nooshland.ir
    ```
 
 2. **GitHub Secrets/Variables**: Configure the following in your GitHub repository settings:
@@ -73,7 +73,7 @@ pm2 stop nooshland
 The workflow automatically configures Nginx at `/etc/nginx/sites-available/nooshland` to:
 - Redirect HTTP (port 80) to HTTPS (port 443)
 - Proxy HTTPS requests to the Next.js app on port 3005
-- Handle both `nooshland.com` and `nooshland.ir` domains
+- Handle `nooshland.ir` and `www.nooshland.ir` domains
 
 ## Troubleshooting
 
@@ -95,6 +95,6 @@ The workflow automatically configures Nginx at `/etc/nginx/sites-available/noosh
 
 4. **SSL certificate issues**: Verify certificates exist:
    ```bash
-   sudo ls -la /etc/letsencrypt/live/nooshland.com/
+   sudo ls -la /etc/letsencrypt/live/nooshland.ir/
    ```
 
