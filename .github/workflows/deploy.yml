@@ -307,6 +307,7 @@ jobs:
           username: ${{ env.SSH_USER }}
           password: ${{ env.SSH_PASSWORD }}
           port: ${{ env.SSH_PORT }}
+          command_timeout: 30m
           script: |
             set -eu
             if [ -n "${BASH:-}" ]; then
@@ -377,7 +378,12 @@ jobs:
             # Install production dependencies
             cd "$APP_DIR"
             echo "Installing production dependencies..."
-            npm ci --omit=dev --prefer-offline --no-audit
+            echo "This may take a few minutes..."
+            if ! npm ci --omit=dev --no-audit --progress=false; then
+              echo "npm ci failed, trying npm install as fallback..."
+              npm install --omit=dev --no-audit --progress=false
+            fi
+            echo "✓ Dependencies installed successfully"
             
             # Install PM2 if not already installed
             if ! command -v pm2 >/dev/null 2>&1; then
