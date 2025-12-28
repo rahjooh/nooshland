@@ -204,7 +204,7 @@ export default function Home() {
                     ))}
                   </div>
                   <p className="text-gray-300 mb-4 italic">
-                    "بهترین قهوه‌ای که تا به حال خورده‌ام. محیط بسیار آرامش‌بخش و پرسنل خوش‌برخورد."
+                    &quot;بهترین قهوه‌ای که تا به حال خورده‌ام. محیط بسیار آرامش‌بخش و پرسنل خوش‌برخورد.&quot;
                   </p>
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"></div>
@@ -227,7 +227,7 @@ export default function Home() {
                     ))}
                   </div>
                   <p className="text-gray-300 mb-4 italic">
-                    "برگرهایشان فوق‌العاده است. هر بار که می‌آیم، طعم جدیدی را تجربه می‌کنم."
+                    &quot;برگرهایشان فوق‌العاده است. هر بار که می‌آیم، طعم جدیدی را تجربه می‌کنم.&quot;
                   </p>
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"></div>
@@ -250,7 +250,7 @@ export default function Home() {
                     ))}
                   </div>
                   <p className="text-gray-300 mb-4 italic">
-                    "سرویس بسیار سریع و محیط بسیار شیک. برای جلسات کاری عالی است."
+                    &quot;سرویس بسیار سریع و محیط بسیار شیک. برای جلسات کاری عالی است.&quot;
                   </p>
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"></div>
