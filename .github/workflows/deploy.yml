@@ -234,20 +234,29 @@ jobs:
           ARCHIVE_PATH="${RUNNER_TEMP}/deploy.tar.gz"
 
           # Create archive with built files and necessary config files
-          tar czf "$ARCHIVE_PATH" \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='deploy.tar.gz' \
-            --exclude='deploy.tar.gz.*' \
-            --exclude='.next/cache' \
-            .next/ \
-            public/ \
-            package.json \
-            package-lock.json \
-            next.config.js \
-            tsconfig.json \
-            postcss.config.js \
+          # Build the base tar command
+          TAR_ARGS=(
+            czf "$ARCHIVE_PATH"
+            --exclude='.git'
+            --exclude='node_modules'
+            --exclude='deploy.tar.gz'
+            --exclude='deploy.tar.gz.*'
+            --exclude='.next/cache'
+            .next/
+            package.json
+            package-lock.json
+            next.config.js
+            tsconfig.json
+            postcss.config.js
             tailwind.config.js
+          )
+
+          # Add public/ only if it exists
+          if [ -d "public" ]; then
+            TAR_ARGS+=(public/)
+          fi
+
+          tar "${TAR_ARGS[@]}"
 
           mv "$ARCHIVE_PATH" ./deploy.tar.gz
           echo "Deployment archive created successfully"
