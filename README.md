@@ -42,6 +42,8 @@ A beautiful, nature-themed cafe and restaurant website with a comprehensive admi
    # or using Makefile
    make install
    ```
+   
+   **Note:** After adding new dependencies, always run `npm install` locally to update `package-lock.json` before committing.
 
 3. **Initialize the database**
    ```bash
@@ -79,6 +81,8 @@ make dev
 - `npm run build` - Build for production
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
+
+**Important:** After adding or updating dependencies in `package.json`, always run `npm install` locally to update `package-lock.json` before committing. This ensures the lock file stays in sync.
 
 ### Database
 - `npm run db:init` - Initialize database (migrate + seed)

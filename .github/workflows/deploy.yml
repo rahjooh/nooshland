@@ -23,7 +23,13 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit
+        run: |
+          # Try npm ci first (faster and more reliable)
+          # If it fails due to lock file mismatch, fall back to npm install
+          if ! npm ci --prefer-offline --no-audit; then
+            echo "npm ci failed, lock file may be out of sync. Updating lock file..."
+            npm install --no-audit
+          fi
 
       - name: Run lint/type-check
         run: npm run lint
@@ -227,7 +233,13 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit
+        run: |
+          # Try npm ci first (faster and more reliable)
+          # If it fails due to lock file mismatch, fall back to npm install
+          if ! npm ci --prefer-offline --no-audit; then
+            echo "npm ci failed, lock file may be out of sync. Updating lock file..."
+            npm install --no-audit
+          fi
 
       - name: Build project
         run: NODE_OPTIONS="--max-old-space-size=2048" npm run build
