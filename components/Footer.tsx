@@ -8,42 +8,44 @@ export default function Footer() {
     <motion.footer
       initial={{ opacity: 0, y: 50 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-gray-900 text-white py-12"
+      className="bg-white border-t nature-border py-12"
     >
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <h3 className="text-xl font-bold mb-4 playfair">کافه لوکس</h3>
-            <p className="text-gray-400">تجربه‌ای فراموش‌نشدنی</p>
+            <div className="flex items-center space-x-2 space-x-reverse mb-4">
+              <div className="w-10 h-10 nature-light-green rounded-full flex items-center justify-center">
+                <i className="fas fa-leaf nature-green"></i>
+              </div>
+              <h3 className="text-xl font-bold playfair text-nature">کافه گل‌های زیبا</h3>
+            </div>
+            <p className="text-nature-light">تجربه‌ای آرامش‌بخش در فضایی پر از گل و گیاه</p>
           </div>
           <div>
-            <h4 className="font-bold mb-4">منو</h4>
-            <ul className="space-y-2 text-gray-400">
-              <li><Link href="/cafe" className="hover:text-yellow-400 transition-colors">کافه</Link></li>
-              <li><Link href="/fastfood" className="hover:text-yellow-400 transition-colors">فست فود</Link></li>
+            <h4 className="font-bold mb-4 text-nature">منو</h4>
+            <ul className="space-y-2 text-nature-light">
+              <li><Link href="/cafe" className="hover:text-nature-green transition-colors">منوی کامل</Link></li>
             </ul>
           </div>
           <div>
-            <h4 className="font-bold mb-4">لینک‌ها</h4>
-            <ul className="space-y-2 text-gray-400">
-              <li><Link href="/about" className="hover:text-yellow-400 transition-colors">درباره ما</Link></li>
-              <li><Link href="/contact" className="hover:text-yellow-400 transition-colors">تماس با ما</Link></li>
+            <h4 className="font-bold mb-4 text-nature">لینک‌ها</h4>
+            <ul className="space-y-2 text-nature-light">
+              <li><Link href="/about" className="hover:text-nature-green transition-colors">درباره ما</Link></li>
+              <li><Link href="/contact" className="hover:text-nature-green transition-colors">تماس با ما</Link></li>
             </ul>
           </div>
           <div>
-            <h4 className="font-bold mb-4">ارتباط</h4>
-            <div className="space-y-2 text-gray-400">
-              <p><i className="fas fa-phone mr-2"></i>021-12345678</p>
-              <p><i className="fas fa-envelope mr-2"></i>info@cafelux.com</p>
+            <h4 className="font-bold mb-4 text-nature">ارتباط</h4>
+            <div className="space-y-2 text-nature-light">
+              <p><i className="fas fa-phone ml-2 nature-green"></i>021-12345678</p>
+              <p><i className="fas fa-envelope ml-2 nature-green"></i>info@nooshland.ir</p>
             </div>
           </div>
         </div>
-        <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-          <p>&copy; 2024 کافه لوکس. تمام حقوق محفوظ است.</p>
+        <div className="border-t nature-border mt-8 pt-8 text-center text-nature-light">
+          <p>&copy; 2024 کافه گل‌های زیبا. تمام حقوق محفوظ است.</p>
         </div>
       </div>
     </motion.footer>
   )
 }
-
-
