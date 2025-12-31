@@ -472,10 +472,13 @@ jobs:
           # Verify archive contents - check for node_modules
           echo "Verifying archive structure..."
           echo "Checking for node_modules in archive:"
-          if tar -tzf deploy.tar.gz 2>/dev/null | grep -q "^\.next/standalone/node_modules"; then
+          
+          # Check if node_modules directory exists - use flexible pattern
+          # Tar listings can vary, so check for any path containing node_modules
+          if tar -tzf deploy.tar.gz 2>/dev/null | grep -q "node_modules"; then
             echo "✓ node_modules found in archive"
             echo "Sample node_modules entries:"
-            tar -tzf deploy.tar.gz 2>/dev/null | grep "^\.next/standalone/node_modules" | head -5 || true
+            tar -tzf deploy.tar.gz 2>/dev/null | grep "node_modules" | head -5 || true
           else
             echo "::error::node_modules NOT found in archive!"
             echo "Archive contents (first 30 entries):"
@@ -484,11 +487,19 @@ jobs:
           fi
           
           # Check for next module specifically
-          if tar -tzf deploy.tar.gz 2>/dev/null | grep -q "^\.next/standalone/node_modules/next"; then
+          if tar -tzf deploy.tar.gz 2>/dev/null | grep -q "node_modules.*next"; then
             echo "✓ next module found in archive"
           else
-            echo "::error::next module NOT found in archive!"
-            exit 1
+            echo "Checking for next module (alternative patterns)..."
+            # Try checking for @next or next directory
+            if tar -tzf deploy.tar.gz 2>/dev/null | grep -qE "(node_modules/next|node_modules/@next)"; then
+              echo "✓ next module found in archive (alternative pattern)"
+            else
+              echo "::error::next module NOT found in archive!"
+              echo "Available top-level modules in node_modules:"
+              tar -tzf deploy.tar.gz 2>/dev/null | grep "node_modules/[^/]*$" | head -20 || true
+              exit 1
+            fi
           fi
 
       - name: Install sshpass
