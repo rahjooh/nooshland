@@ -30,6 +30,11 @@ jobs:
 
       - name: Build project
         run: NODE_OPTIONS="--max-old-space-size=2048" npm run build
+        env:
+          NODE_ENV: production
+        # Note: Build uses optimized config:
+        # - Source maps disabled (productionSourceMaps: false)
+        # - Image optimization disabled (images.unoptimized: true)
 
   ssh-test:
     name: Verify SSH connectivity
@@ -143,7 +148,7 @@ jobs:
             SITE_CONF="/etc/nginx/sites-available/nooshland-ir"
             SITE_LINK="/etc/nginx/sites-enabled/nooshland-ir"
             APP_DIR="$HOME/apps/nooshland.com"
-            APP_PORT="3005"
+            APP_PORT="4001"
 
             $SUDO tee "$SITE_CONF" >/dev/null <<EOF
             server {
@@ -167,7 +172,7 @@ jobs:
                 ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256';
                 ssl_prefer_server_ciphers off;
 
-                # Proxy to Next.js app on port 3005
+                # Proxy to Next.js app on port 4001
                 location / {
                     proxy_pass http://localhost:${APP_PORT};
                     proxy_http_version 1.1;
@@ -225,9 +230,13 @@ jobs:
         run: npm ci --prefer-offline --no-audit
 
       - name: Build project
-        run: NODE_OPTIONS="--max-old-space-size=4096" npm run build
+        run: NODE_OPTIONS="--max-old-space-size=2048" npm run build
         env:
           NODE_ENV: production
+        # Performance optimizations applied:
+        # - Source maps disabled (reduces memory)
+        # - Image optimization disabled (reduces CPU/RAM)
+        # - Lower memory allocation for build (optimized config)
 
       - name: Verify build output
         run: |
@@ -328,7 +337,7 @@ jobs:
             ARCHIVE_NAME="deploy.tar.gz"
             ARCHIVE_PATH="$ARCHIVE_DIR/$ARCHIVE_NAME"
             APP_DIR="$HOME/apps/nooshland.com"
-            APP_PORT="3005"
+            APP_PORT="4001"
 
             mkdir -p "$ARCHIVE_DIR"
 
@@ -421,8 +430,15 @@ jobs:
             pm2 delete nooshland || true
             
             # Start the application with PM2
-            echo "Starting application with PM2 on port $APP_PORT..."
-            PORT=$APP_PORT pm2 start npm --name "nooshland" -- start
+            # Performance optimizations applied:
+            # - Use direct Next.js binary instead of npm start (better control, lower overhead)
+            # - Set max memory restart to 400MB (auto-restart on memory issues)
+            # - Source maps disabled in production (reduces memory consumption)
+            # - Image optimization disabled (reduces CPU/RAM usage)
+            echo "Starting application with PM2 on port $APP_PORT with 400MB memory limit..."
+            echo "Performance optimizations: No source maps, no image optimization, 400MB memory limit"
+            cd "$APP_DIR"
+            PORT=$APP_PORT pm2 start node_modules/.bin/next --name "nooshland" --max-memory-restart 400M -- start
             
             # Save PM2 configuration
             pm2 save
@@ -433,7 +449,7 @@ jobs:
             # Get absolute paths
             ABS_APP_DIR="$(cd "$APP_DIR" && pwd)"
             
-            # Update nginx config with proxy to port 3005
+            # Update nginx config with proxy to port 4001
             SITE_CONF="/etc/nginx/sites-available/nooshland-ir"
             SITE_LINK="/etc/nginx/sites-enabled/nooshland-ir"
             
@@ -466,7 +482,7 @@ jobs:
                 ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256';
                 ssl_prefer_server_ciphers off;
                 
-                # Proxy to Next.js app on port 3005
+                # Proxy to Next.js app on port 4001
                 location / {
                     proxy_pass http://127.0.0.1:${APP_PORT};
                     proxy_http_version 1.1;
@@ -551,7 +567,7 @@ jobs:
             echo "=== Recent PM2 Logs ==="
             pm2 logs nooshland --lines 20 --nostream || true
             
-            # Verify the app is listening on port 3005
+            # Verify the app is listening on port 4001
             echo "=== Port Check ==="
             if command -v netstat >/dev/null 2>&1; then
               netstat -tlnp | grep ":$APP_PORT " || echo "Port $APP_PORT not found in netstat"
@@ -564,3 +580,12 @@ jobs:
             echo "=== Deployment Complete ==="
             echo "Application should be running on port $APP_PORT"
             echo "Nginx should be proxying nooshland.ir to localhost:$APP_PORT"
+            echo ""
+            echo "=== Performance Optimizations Active ==="
+            echo "✓ Source maps disabled (productionSourceMaps: false)"
+            echo "✓ Image optimization disabled (images.unoptimized: true)"
+            echo "✓ PM2 memory limit: 400MB (auto-restart on exceed)"
+            echo "✓ Using direct Next.js binary (not npm start)"
+            echo ""
+            echo "Monitor memory usage: pm2 monit"
+            echo "View logs: pm2 logs nooshland"

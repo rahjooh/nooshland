@@ -156,10 +156,58 @@ The project includes a GitHub Actions workflow for automated deployment. See `.g
 
 ### Manual Deployment
 1. Build the project: `npm run build`
-2. Start with PM2: `pm2 start npm --name "nooshland" -- start`
-3. Configure Nginx to proxy to port 3005
+2. Start with PM2 (with 400MB memory limit): 
+   ```bash
+   PORT=4001 pm2 start node_modules/.bin/next --name "nooshland" --max-memory-restart 400M -- start
+   ```
+3. Configure Nginx to proxy to port 4001
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
+
+## Performance Optimizations
+
+This project includes several performance optimizations to reduce memory and CPU usage:
+
+### 1. Disabled Source Maps
+- **Why**: Source maps consume extra memory in production
+- **Configuration**: `productionSourceMaps: false` in `next.config.js`
+- **Benefit**: Reduces memory footprint significantly
+
+### 2. Disabled Image Optimization
+- **Why**: Next.js's built-in image optimization is CPU/RAM intensive
+- **Configuration**: `images.unoptimized: true` in `next.config.js`
+- **Benefit**: Reduces CPU and memory usage, especially with many images
+- **Note**: Use pre-optimized images or external image optimization services (Cloudinary, etc.)
+
+### 3. PM2 Memory Management
+- **Why**: Prevents memory leaks and crashes
+- **Configuration**: PM2 configured with `--max-memory-restart 400M`
+- **Benefit**: Automatically restarts the app if memory exceeds 400MB
+- **Usage**: Do not use `npm start` directly. Always use PM2 to manage the application
+
+### PM2 Best Practices
+```bash
+# Start with memory limit
+PORT=4001 pm2 start node_modules/.bin/next --name "nooshland" --max-memory-restart 400M -- start
+
+# Monitor memory usage
+pm2 monit
+
+# Check memory stats
+pm2 list
+
+# View logs
+pm2 logs nooshland
+
+# Restart if needed
+pm2 restart nooshland
+```
+
+### Memory Optimization Tips
+- The app is configured to restart automatically if memory exceeds 400MB
+- Monitor memory usage regularly with `pm2 monit`
+- Consider increasing the limit if your server has more resources
+- Use PM2's built-in clustering for better performance (optional)
 
 ## Environment Variables
 
