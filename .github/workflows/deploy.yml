@@ -416,6 +416,14 @@ jobs:
             
             echo "Creating/updating nginx config to proxy to port $APP_PORT"
             
+            # Verify the app is running on the correct port
+            echo "Verifying application is running on port $APP_PORT..."
+            if command -v ss >/dev/null 2>&1; then
+              ss -tlnp | grep ":$APP_PORT " || echo "WARNING: Port $APP_PORT is not listening"
+            elif command -v netstat >/dev/null 2>&1; then
+              netstat -tlnp | grep ":$APP_PORT " || echo "WARNING: Port $APP_PORT is not listening"
+            fi
+
             # Create nginx config
             $SUDO tee "$SITE_CONF" >/dev/null <<EOF
             server {
@@ -428,13 +436,16 @@ jobs:
                 listen 443 ssl http2;
                 listen [::]:443 ssl http2;
                 server_name nooshland.ir www.nooshland.ir;
+                
                 ssl_certificate /etc/letsencrypt/live/nooshland.ir/fullchain.pem;
                 ssl_certificate_key /etc/letsencrypt/live/nooshland.ir/privkey.pem;
                 ssl_protocols TLSv1.2 TLSv1.3;
                 ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256';
                 ssl_prefer_server_ciphers off;
+                
+                # Proxy to Next.js app on port 3005
                 location / {
-                    proxy_pass http://localhost:${APP_PORT};
+                    proxy_pass http://127.0.0.1:${APP_PORT};
                     proxy_http_version 1.1;
                     proxy_set_header Upgrade \$http_upgrade;
                     proxy_set_header Connection 'upgrade';
@@ -443,7 +454,14 @@ jobs:
                     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
                     proxy_set_header X-Forwarded-Proto \$scheme;
                     proxy_cache_bypass \$http_upgrade;
+                    
+                    # Timeouts
+                    proxy_connect_timeout 60s;
+                    proxy_send_timeout 60s;
+                    proxy_read_timeout 60s;
                 }
+                
+                # Gzip compression
                 gzip on;
                 gzip_vary on;
                 gzip_min_length 1024;
@@ -461,6 +479,18 @@ jobs:
             
             echo "Nginx config created/updated. Proxying to port $APP_PORT"
             
+            # Verify nginx config content
+            echo "=== Nginx config for nooshland.ir ==="
+            $SUDO cat "$SITE_CONF" | grep -A 5 "server_name nooshland.ir" || true
+            
+            # Check for conflicting server blocks
+            echo "=== Checking for other nginx server blocks ==="
+            $SUDO grep -r "server_name" /etc/nginx/sites-enabled/ 2>/dev/null | grep -v "nooshland.ir" || true
+            
+            # Verify which ports are being used
+            echo "=== Checking active nginx server blocks ==="
+            $SUDO nginx -T 2>/dev/null | grep -E "(server_name|listen|proxy_pass)" | head -30 || true
+            
             # Test nginx config
             if $SUDO nginx -t; then
               echo "✓ Nginx config test passed"
@@ -469,6 +499,14 @@ jobs:
               $SUDO nginx -t
               exit 1
             fi
+            
+            # Check for default_server directives that might interfere
+            echo "=== Checking for default_server directives ==="
+            $SUDO grep -r "default_server" /etc/nginx/sites-enabled/ 2>/dev/null || echo "No default_server found"
+            
+            # Ensure no default server block is catching nooshland.ir
+            echo "=== Verifying server_name matching ==="
+            $SUDO nginx -T 2>/dev/null | grep -B 2 -A 10 "server_name.*nooshland.ir" || echo "Could not find nooshland.ir server block"
             
             # Reload nginx to apply changes
             if command -v nginx >/dev/null 2>&1; then
