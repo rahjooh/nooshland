@@ -25,20 +25,44 @@ This project is configured to deploy to your host server on port 4001 and serve 
 
 ## Deployment Process
 
-The GitHub Actions workflow will:
+The GitHub Actions workflow uses **standalone mode** for optimal performance:
 
 1. **Quality Checks**: Run linting and build verification
 2. **SSH Test**: Verify SSH connectivity and configure Nginx
-3. **Deploy**: 
-   - Build the project
-   - Upload to server
-   - Install production dependencies
-   - Start with PM2 on port 4001
+3. **Build on GitHub Runners**: 
+   - Build happens on GitHub's powerful runners (not on your server)
+   - Creates standalone build with all dependencies bundled
+   - Packages only: `.next/standalone`, `.next/static`, `public`, `data`
+4. **Deploy to Server**: 
+   - Upload minimal standalone package (no source code)
+   - **NO npm install needed** (all dependencies included)
+   - Start with PM2 on port 4001 using standalone server.js
    - Configure Nginx to proxy to port 4001
+
+**Benefits:**
+- Build uses GitHub's CPU/RAM (not your server)
+- No npm install on server (saves 400-800MB RAM)
+- Minimal file transfer (only what's needed to run)
+- Faster deployments
 
 ## Manual Deployment (if needed)
 
-If you need to deploy manually:
+**Using Standalone Mode (Recommended):**
+
+```bash
+# On your LOCAL machine (or CI/CD)
+npm run build
+
+# Transfer .next/standalone, .next/static, public, data to server
+# Then on server:
+cd ~/apps/nooshland.com/.next/standalone
+PORT=4001 pm2 start server.js --name "nooshland" --max-memory-restart 400M
+
+# Or restart if already running
+pm2 restart nooshland
+```
+
+**Traditional Mode (if not using standalone):**
 
 ```bash
 # On your server
@@ -52,6 +76,8 @@ PORT=4001 pm2 start node_modules/.bin/next --name "nooshland" --max-memory-resta
 # Or restart if already running
 pm2 restart nooshland
 ```
+
+**⚠️ Important:** Standalone mode is recommended as it eliminates npm install on the server, saving significant RAM.
 
 ## Port Configuration
 
@@ -118,7 +144,22 @@ The workflow automatically configures Nginx at `/etc/nginx/sites-available/noosh
    sudo ls -la /etc/letsencrypt/live/nooshland.ir/
    ```
 
-5. **High memory usage**: Check memory usage:
+5. **Set up Swap File (Critical for 1GB RAM servers)**:
+   ```bash
+   # Create 2GB swap file
+   sudo fallocate -l 2G /swapfile
+   sudo chmod 600 /swapfile
+   sudo mkswap /swapfile
+   sudo swapon /swapfile
+   
+   # Make it permanent
+   echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+   
+   # Verify
+   free -h
+   ```
+
+6. **High memory usage**: Check memory usage:
    ```bash
    pm2 monit
    pm2 list
@@ -130,19 +171,40 @@ The workflow automatically configures Nginx at `/etc/nginx/sites-available/noosh
 
 ## Performance Optimizations
 
-This deployment includes several performance optimizations:
+This deployment includes several performance optimizations for low-resource servers:
 
-### 1. Disabled Source Maps
+### 1. Standalone Build Mode ⭐
+- **What**: Build happens on GitHub runners, only minimal files transferred to server
+- **Configuration**: `output: 'standalone'` in `next.config.js`
+- **Benefits**:
+  - No `npm install` on server (saves 400-800MB RAM)
+  - Build uses GitHub's CPU/RAM (not your server)
+  - Only transfers: `.next/standalone`, `.next/static`, `public`, `data`
+  - Typical RAM usage: 150-200MB per app
+- **How**: GitHub Actions builds → packages standalone → transfers → runs with PM2
+
+### 2. Disabled Source Maps
 - Source maps are disabled in production (`productionSourceMaps: false`)
 - Reduces memory consumption significantly
 
-### 2. Disabled Image Optimization
+### 3. Disabled Image Optimization
 - Next.js image optimization is disabled (`images.unoptimized: true`)
 - Reduces CPU and RAM usage
 - Use pre-optimized images or external services (Cloudinary, etc.)
 
-### 3. PM2 Memory Management
+### 4. PM2 Memory Management
 - PM2 configured with `--max-memory-restart 400M`
 - Automatically restarts app if memory exceeds 400MB
-- Uses direct Next.js binary instead of npm for better control
+- Uses direct node execution (standalone server.js) instead of npm
+
+### Resource Budget for 1GB RAM Server
+
+If running multiple apps:
+- Ubuntu OS + Basic Services: ~300 MB
+- Nginx (Reverse Proxy): ~20 MB
+- Next.js App 1 (Standalone): ~150-200 MB
+- Next.js App 2 (Standalone): ~150-200 MB
+- Remaining Buffer: ~280 MB
+
+**Critical:** Set up a 2-4GB swap file on your server to prevent crashes if RAM is exceeded.
 

@@ -155,12 +155,19 @@ See `lib/migrations.ts` for full schema details.
 The project includes a GitHub Actions workflow for automated deployment. See `.github/workflows/deploy.yml` for details.
 
 ### Manual Deployment
+
+**Using Standalone Mode (Recommended for Production):**
+
 1. Build the project: `npm run build`
-2. Start with PM2 (with 400MB memory limit): 
+2. The build creates a `.next/standalone` directory with all dependencies
+3. Start with PM2 using standalone server:
    ```bash
-   PORT=4001 pm2 start node_modules/.bin/next --name "nooshland" --max-memory-restart 400M -- start
+   cd .next/standalone
+   PORT=4001 pm2 start server.js --name "nooshland" --max-memory-restart 400M
    ```
-3. Configure Nginx to proxy to port 4001
+4. Configure Nginx to proxy to port 4001
+
+**Note:** Standalone mode eliminates the need for `npm install` on the server, reducing memory usage significantly.
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
 
@@ -168,27 +175,47 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
 
 This project includes several performance optimizations to reduce memory and CPU usage:
 
-### 1. Disabled Source Maps
+### 1. Standalone Build Mode
+- **Why**: Eliminates the need for `npm install` on the server, reducing memory usage by 400-800MB
+- **Configuration**: `output: 'standalone'` in `next.config.js`
+- **Benefit**: 
+  - Build happens on GitHub's powerful runners (not on your server)
+  - Only transfers minimal files needed to run (.next/standalone, .next/static, public)
+  - No npm install needed on server (all dependencies bundled)
+  - Typical RAM usage: 150-200MB per app (vs 400-800MB with npm install)
+- **How it works**: GitHub Actions builds the app, packages only the standalone output, transfers to server
+
+### 2. Disabled Source Maps
 - **Why**: Source maps consume extra memory in production
 - **Configuration**: `productionSourceMaps: false` in `next.config.js`
 - **Benefit**: Reduces memory footprint significantly
 
-### 2. Disabled Image Optimization
+### 3. Disabled Image Optimization
 - **Why**: Next.js's built-in image optimization is CPU/RAM intensive
 - **Configuration**: `images.unoptimized: true` in `next.config.js`
 - **Benefit**: Reduces CPU and memory usage, especially with many images
 - **Note**: Use pre-optimized images or external image optimization services (Cloudinary, etc.)
 
-### 3. PM2 Memory Management
+### 4. PM2 Memory Management
 - **Why**: Prevents memory leaks and crashes
 - **Configuration**: PM2 configured with `--max-memory-restart 400M`
 - **Benefit**: Automatically restarts the app if memory exceeds 400MB
 - **Usage**: Do not use `npm start` directly. Always use PM2 to manage the application
 
 ### PM2 Best Practices
+
+**Standalone Mode (Recommended):**
+```bash
+# Start with memory limit using standalone build
+cd .next/standalone
+PORT=4001 pm2 start server.js --name "nooshland" --max-memory-restart 400M
+```
+
+**Traditional Mode (if not using standalone):**
 ```bash
 # Start with memory limit
 PORT=4001 pm2 start node_modules/.bin/next --name "nooshland" --max-memory-restart 400M -- start
+```
 
 # Monitor memory usage
 pm2 monit

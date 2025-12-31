@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Enable standalone output for minimal deployment footprint
+  // This packages only the absolute minimum files needed to run the app
+  output: 'standalone',
   // Disable source maps to reduce memory consumption
   productionSourceMaps: false,
   // Disable image optimization to reduce CPU/RAM usage

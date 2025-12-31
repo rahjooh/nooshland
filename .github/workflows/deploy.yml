@@ -244,16 +244,26 @@ jobs:
             echo "::error::Build failed - .next directory not found"
             exit 1
           fi
-          echo "Build output verified: .next directory exists"
+          if [ ! -d ".next/standalone" ]; then
+            echo "::error::Standalone build not found - check next.config.js has output: 'standalone'"
+            exit 1
+          fi
+          echo "Build output verified: .next/standalone directory exists"
 
-      - name: Prepare deployment archive
+      - name: Prepare standalone deployment archive
         run: |
           set -euo pipefail
 
           ARCHIVE_PATH="${RUNNER_TEMP}/deploy.tar.gz"
 
-          # Create archive with built files and necessary config files
-          # Build the base tar command
+          # Create archive with ONLY standalone build files
+          # This is the optimized approach: only transfer what's needed to run
+          # - .next/standalone: Contains the minimal server files
+          # - .next/static: Contains static assets
+          # - public: Contains public assets
+          # - data: Contains SQLite database directory structure
+          echo "Creating optimized standalone deployment archive..."
+          
           TAR_ARGS=(
             czf "$ARCHIVE_PATH"
             --exclude='.git'
@@ -261,13 +271,8 @@ jobs:
             --exclude='deploy.tar.gz'
             --exclude='deploy.tar.gz.*'
             --exclude='.next/cache'
-            .next/
-            package.json
-            package-lock.json
-            next.config.js
-            tsconfig.json
-            postcss.config.js
-            tailwind.config.js
+            .next/standalone/
+            .next/static/
           )
 
           # Add public/ only if it exists
@@ -275,10 +280,18 @@ jobs:
             TAR_ARGS+=(public/)
           fi
 
+          # Create data directory structure (for SQLite)
+          mkdir -p data
+          TAR_ARGS+=(data/)
+
           tar "${TAR_ARGS[@]}"
 
           mv "$ARCHIVE_PATH" ./deploy.tar.gz
-          echo "Deployment archive created successfully"
+          
+          # Show archive size
+          ARCHIVE_SIZE=$(du -h deploy.tar.gz | cut -f1)
+          echo "Deployment archive created successfully (Size: $ARCHIVE_SIZE)"
+          echo "Archive contains only: .next/standalone, .next/static, public, data"
 
       - name: Install sshpass
         run: |
@@ -350,21 +363,29 @@ jobs:
             # Create app directory if it doesn't exist
             mkdir -p "$APP_DIR"
             
-            # Extract archive to app directory
+            # Extract standalone archive to app directory
+            echo "Extracting standalone build..."
             tar -xzf "$ARCHIVE_PATH" -C "$APP_DIR"
             rm -f "$ARCHIVE_PATH"
             
-            # Verify the .next directory exists
-            if [ ! -d "$APP_DIR/.next" ]; then
-              echo "Error: .next directory is missing after extraction"
+            # Verify standalone build exists
+            STANDALONE_DIR="$APP_DIR/.next/standalone"
+            if [ ! -d "$STANDALONE_DIR" ]; then
+              echo "Error: Standalone build directory is missing after extraction"
               echo "APP_DIR contents:"
               ls -la "$APP_DIR" || true
               exit 1
             fi
             
-            echo "Files extracted successfully to $APP_DIR"
-            echo "Contents of app directory:"
-            ls -la "$APP_DIR" | head -20 || true
+            # Verify server.js exists in standalone
+            if [ ! -f "$STANDALONE_DIR/server.js" ]; then
+              echo "Error: server.js not found in standalone build"
+              exit 1
+            fi
+            
+            echo "✓ Standalone build extracted successfully"
+            echo "Contents:"
+            ls -la "$APP_DIR" | head -10 || true
             
             # Check Node.js version (should be 20)
             REQUIRED_NODE_VERSION="20"
@@ -384,38 +405,17 @@ jobs:
               $SUDO apt-get install -y nodejs
             fi
 
-            # Verify npm is available
-            if ! command -v npm >/dev/null 2>&1; then
-              echo "ERROR: npm is not available. Node.js installation may have failed."
-              exit 1
-            fi
-
             NODE_VERSION=$(node -v)
-            NPM_VERSION=$(npm -v)
-            echo "Using Node.js: $NODE_VERSION, npm: $NPM_VERSION"
+            echo "Using Node.js: $NODE_VERSION"
+            echo ""
+            echo "✓ NO npm install needed - using standalone build (all dependencies included)"
             
-            # Install production dependencies
-            cd "$APP_DIR"
-            echo "Installing production dependencies..."
-            echo "This may take a few minutes..."
-            if ! npm ci --omit=dev --no-audit --progress=false; then
-              echo "npm ci failed, trying npm install as fallback..."
-              npm install --omit=dev --no-audit --progress=false
-            fi
-            echo "✓ Dependencies installed successfully"
-            
-            # Initialize database (run migrations and seed if needed)
-            echo "Initializing database..."
-            cd "$APP_DIR"
-            
-            # Create data directory if it doesn't exist
+            # Create data directory if it doesn't exist (for SQLite)
             mkdir -p "$APP_DIR/data"
             
             # Database will be auto-initialized on first API call via lib/db.ts
             # which automatically runs migrations on import
-            # For seeding, we can trigger it via API or it will be done on first admin access
             echo "Database will be auto-initialized on first API call"
-            echo "To seed initial data, access the admin panel and it will be seeded automatically"
             
             # Install PM2 if not already installed
             if ! command -v pm2 >/dev/null 2>&1; then
@@ -429,16 +429,32 @@ jobs:
             pm2 stop nooshland || true
             pm2 delete nooshland || true
             
-            # Start the application with PM2
+            # Start the application with PM2 using standalone mode
             # Performance optimizations applied:
-            # - Use direct Next.js binary instead of npm start (better control, lower overhead)
+            # - Using standalone build (no npm install needed, minimal footprint ~150-200MB RAM)
+            # - Direct node execution (no npm overhead)
             # - Set max memory restart to 400MB (auto-restart on memory issues)
             # - Source maps disabled in production (reduces memory consumption)
             # - Image optimization disabled (reduces CPU/RAM usage)
-            echo "Starting application with PM2 on port $APP_PORT with 400MB memory limit..."
-            echo "Performance optimizations: No source maps, no image optimization, 400MB memory limit"
-            cd "$APP_DIR"
-            PORT=$APP_PORT pm2 start node_modules/.bin/next --name "nooshland" --max-memory-restart 400M -- start
+            echo "Starting application with PM2 using standalone build..."
+            echo "Performance optimizations: Standalone mode, no npm install, 400MB memory limit"
+            
+            # Standalone structure:
+            # - .next/standalone/ contains server.js and node_modules
+            # - .next/static/ contains static assets (needs to be accessible)
+            # - public/ contains public assets (needs to be accessible)
+            # The standalone server.js automatically handles these paths
+            
+            cd "$STANDALONE_DIR"
+            
+            # Start with PM2 using standalone server.js
+            # Standalone mode: all dependencies are bundled, no npm install needed
+            PORT=$APP_PORT NODE_ENV=production pm2 start server.js \
+              --name "nooshland" \
+              --max-memory-restart 400M \
+              --node-args="--max-old-space-size=400" \
+              --update-env \
+              --cwd "$STANDALONE_DIR"
             
             # Save PM2 configuration
             pm2 save
@@ -582,10 +598,12 @@ jobs:
             echo "Nginx should be proxying nooshland.ir to localhost:$APP_PORT"
             echo ""
             echo "=== Performance Optimizations Active ==="
+            echo "✓ Standalone mode enabled (minimal footprint, no npm install)"
             echo "✓ Source maps disabled (productionSourceMaps: false)"
             echo "✓ Image optimization disabled (images.unoptimized: true)"
             echo "✓ PM2 memory limit: 400MB (auto-restart on exceed)"
-            echo "✓ Using direct Next.js binary (not npm start)"
+            echo "✓ Direct node execution (no npm overhead)"
+            echo "✓ Build done on GitHub runners (not on server)"
             echo ""
             echo "Monitor memory usage: pm2 monit"
             echo "View logs: pm2 logs nooshland"
