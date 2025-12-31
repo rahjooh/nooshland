@@ -5,7 +5,8 @@ const nextConfig = {
   // This packages only the absolute minimum files needed to run the app
   output: 'standalone',
   // Disable source maps to reduce memory consumption
-  productionSourceMaps: false,
+  // Note: productionSourceMaps is deprecated, use productionBrowserSourceMaps instead
+  productionBrowserSourceMaps: false,
   // Disable image optimization to reduce CPU/RAM usage
   images: {
     domains: ['picsum.photos'],

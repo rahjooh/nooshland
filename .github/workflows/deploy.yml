@@ -387,54 +387,81 @@ jobs:
           echo "Verifying files to archive:"
           ls -la .next/standalone/ | head -10 || true
           
-          TAR_ARGS=(
-            czf "$ARCHIVE_PATH"
-            --exclude='.git'
-            --exclude='deploy.tar.gz'
-            --exclude='deploy.tar.gz.*'
-            --exclude='.next/cache'
-            # Include standalone directory (should contain node_modules)
-            .next/standalone/
-            # Include static assets
-            .next/static/
-          )
-          
-          # Note: We're NOT excluding node_modules here because
-          # .next/standalone/node_modules contains the bundled dependencies
-
-          # Add public/ only if it exists
-          if [ -d "public" ]; then
-            TAR_ARGS+=(public/)
+          # Verify node_modules exists before archiving
+          if [ ! -d ".next/standalone/node_modules" ]; then
+            echo "::error::node_modules not found in .next/standalone before archiving"
+            exit 1
           fi
-
+          
+          # Check if node_modules is a symlink or directory
+          echo "Checking node_modules type:"
+          ls -ld .next/standalone/node_modules || true
+          
+          # Check size of node_modules
+          echo "node_modules size:"
+          du -sh .next/standalone/node_modules || true
+          
           # Create data directory structure (for SQLite)
           mkdir -p data
-          TAR_ARGS+=(data/)
-
-          tar "${TAR_ARGS[@]}"
+          
+          # Create archive - explicitly include node_modules
+          # Use --dereference to follow symlinks if node_modules is a symlink
+          echo "Creating archive (this may take a moment if node_modules is large)..."
+          if [ -d "public" ]; then
+            echo "Including public directory in archive"
+            tar czf "$ARCHIVE_PATH" \
+              --dereference \
+              --exclude='.git' \
+              --exclude='deploy.tar.gz' \
+              --exclude='deploy.tar.gz.*' \
+              --exclude='.next/cache' \
+              .next/standalone/ \
+              .next/static/ \
+              public/ \
+              data/ 2>&1 || {
+              echo "::error::tar command failed"
+              exit 1
+            }
+          else
+            echo "No public directory, creating archive without it"
+            tar czf "$ARCHIVE_PATH" \
+              --dereference \
+              --exclude='.git' \
+              --exclude='deploy.tar.gz' \
+              --exclude='deploy.tar.gz.*' \
+              --exclude='.next/cache' \
+              .next/standalone/ \
+              .next/static/ \
+              data/ 2>&1 || {
+              echo "::error::tar command failed"
+              exit 1
+            }
+          fi
+          
+          echo "Archive created, verifying..."
 
           mv "$ARCHIVE_PATH" ./deploy.tar.gz
           
-          # Show archive size and verify contents
+          # Show archive size
           ARCHIVE_SIZE=$(du -h deploy.tar.gz | cut -f1)
           echo "Deployment archive created successfully (Size: $ARCHIVE_SIZE)"
-          echo "Archive contains: .next/standalone, .next/static, public, data"
           
           # Verify archive contents - check for node_modules
           echo "Verifying archive structure..."
           echo "Checking for node_modules in archive:"
-          if tar -tzf deploy.tar.gz | grep -q "\.next/standalone/node_modules"; then
+          if tar -tzf deploy.tar.gz 2>/dev/null | grep -q "^\.next/standalone/node_modules"; then
             echo "✓ node_modules found in archive"
-            tar -tzf deploy.tar.gz | grep "\.next/standalone/node_modules" | head -5 || true
+            echo "Sample node_modules entries:"
+            tar -tzf deploy.tar.gz 2>/dev/null | grep "^\.next/standalone/node_modules" | head -5 || true
           else
             echo "::error::node_modules NOT found in archive!"
-            echo "Archive contents:"
-            tar -tzf deploy.tar.gz | head -30 || true
+            echo "Archive contents (first 30 entries):"
+            tar -tzf deploy.tar.gz 2>/dev/null | head -30 || true
             exit 1
           fi
           
           # Check for next module specifically
-          if tar -tzf deploy.tar.gz | grep -q "\.next/standalone/node_modules/next"; then
+          if tar -tzf deploy.tar.gz 2>/dev/null | grep -q "^\.next/standalone/node_modules/next"; then
             echo "✓ next module found in archive"
           else
             echo "::error::next module NOT found in archive!"
