@@ -406,7 +406,12 @@ jobs:
           
           # Create archive - explicitly include node_modules
           # Use --dereference to follow symlinks if node_modules is a symlink
+          # Use -C to change directory and avoid path issues
           echo "Creating archive (this may take a moment if node_modules is large)..."
+          
+          # Create archive from current directory, explicitly including node_modules
+          # The issue might be that tar is not including node_modules for some reason
+          # Let's try a more explicit approach
           if [ -d "public" ]; then
             echo "Including public directory in archive"
             tar czf "$ARCHIVE_PATH" \
@@ -415,11 +420,16 @@ jobs:
               --exclude='deploy.tar.gz' \
               --exclude='deploy.tar.gz.*' \
               --exclude='.next/cache' \
-              .next/standalone/ \
-              .next/static/ \
-              public/ \
-              data/ 2>&1 || {
+              --exclude='node_modules/.cache' \
+              .next/standalone/node_modules \
+              .next/standalone/.next \
+              .next/standalone/server.js \
+              .next/standalone/package.json \
+              .next/static \
+              public \
+              data 2>&1 | tee /tmp/tar-output.log || {
               echo "::error::tar command failed"
+              cat /tmp/tar-output.log || true
               exit 1
             }
           else
@@ -430,15 +440,28 @@ jobs:
               --exclude='deploy.tar.gz' \
               --exclude='deploy.tar.gz.*' \
               --exclude='.next/cache' \
-              .next/standalone/ \
-              .next/static/ \
-              data/ 2>&1 || {
+              --exclude='node_modules/.cache' \
+              .next/standalone/node_modules \
+              .next/standalone/.next \
+              .next/standalone/server.js \
+              .next/standalone/package.json \
+              .next/static \
+              data 2>&1 | tee /tmp/tar-output.log || {
               echo "::error::tar command failed"
+              cat /tmp/tar-output.log || true
               exit 1
             }
           fi
           
-          echo "Archive created, verifying..."
+          echo "Archive created, checking size..."
+          ARCHIVE_SIZE_BYTES=$(stat -f%z "$ARCHIVE_PATH" 2>/dev/null || stat -c%s "$ARCHIVE_PATH" 2>/dev/null || echo "unknown")
+          echo "Archive size: $ARCHIVE_SIZE_BYTES bytes"
+          
+          if [ "$ARCHIVE_SIZE_BYTES" != "unknown" ] && [ "$ARCHIVE_SIZE_BYTES" -lt 10000000 ]; then
+            echo "::warning::Archive seems too small (less than 10MB), node_modules might not be included"
+          fi
+          
+          echo "Verifying archive..."
 
           mv "$ARCHIVE_PATH" ./deploy.tar.gz
           
