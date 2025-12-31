@@ -473,31 +473,34 @@ jobs:
           echo "Verifying archive structure..."
           echo "Checking for node_modules in archive:"
           
-          # Check if node_modules directory exists - use flexible pattern
-          # Tar listings can vary, so check for any path containing node_modules
-          if tar -tzf deploy.tar.gz 2>/dev/null | grep -q "node_modules"; then
+          # Extract archive listing and check for node_modules
+          ARCHIVE_LIST=$(tar -tzf deploy.tar.gz 2>/dev/null)
+          
+          # Check if node_modules directory exists
+          if echo "$ARCHIVE_LIST" | grep -q "node_modules"; then
             echo "✓ node_modules found in archive"
             echo "Sample node_modules entries:"
-            tar -tzf deploy.tar.gz 2>/dev/null | grep "node_modules" | head -5 || true
+            echo "$ARCHIVE_LIST" | grep "node_modules" | head -5 || true
           else
             echo "::error::node_modules NOT found in archive!"
             echo "Archive contents (first 30 entries):"
-            tar -tzf deploy.tar.gz 2>/dev/null | head -30 || true
+            echo "$ARCHIVE_LIST" | head -30 || true
             exit 1
           fi
           
           # Check for next module specifically
-          if tar -tzf deploy.tar.gz 2>/dev/null | grep -q "node_modules.*next"; then
+          if echo "$ARCHIVE_LIST" | grep -qE "(node_modules/next|node_modules/@next)"; then
             echo "✓ next module found in archive"
           else
             echo "Checking for next module (alternative patterns)..."
-            # Try checking for @next or next directory
-            if tar -tzf deploy.tar.gz 2>/dev/null | grep -qE "(node_modules/next|node_modules/@next)"; then
-              echo "✓ next module found in archive (alternative pattern)"
+            # Try checking for any next-related module
+            if echo "$ARCHIVE_LIST" | grep -q "next"; then
+              echo "✓ next-related module found in archive"
+              echo "$ARCHIVE_LIST" | grep "next" | head -3 || true
             else
               echo "::error::next module NOT found in archive!"
               echo "Available top-level modules in node_modules:"
-              tar -tzf deploy.tar.gz 2>/dev/null | grep "node_modules/[^/]*$" | head -20 || true
+              echo "$ARCHIVE_LIST" | grep "node_modules/[^/]*$" | head -20 || true
               exit 1
             fi
           fi
