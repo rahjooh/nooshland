@@ -297,7 +297,29 @@ jobs:
             echo "::error::Standalone build not found - check next.config.js has output: 'standalone'"
             exit 1
           fi
-          echo "Build output verified: .next/standalone directory exists"
+          
+          # Verify standalone build contains necessary files
+          if [ ! -f ".next/standalone/server.js" ]; then
+            echo "::error::server.js not found in standalone build"
+            exit 1
+          fi
+          
+          if [ ! -d ".next/standalone/node_modules" ]; then
+            echo "::error::node_modules not found in standalone build"
+            exit 1
+          fi
+          
+          if [ ! -d ".next/standalone/node_modules/next" ]; then
+            echo "::error::'next' module not found in standalone/node_modules"
+            echo "Available modules:"
+            ls ".next/standalone/node_modules" | head -20 || true
+            exit 1
+          fi
+          
+          echo "✓ Build output verified: .next/standalone directory exists with all dependencies"
+          echo "  - server.js: exists"
+          echo "  - node_modules: exists"
+          echo "  - next module: exists"
 
       - name: Prepare standalone deployment archive
         run: |
@@ -305,14 +327,27 @@ jobs:
 
           ARCHIVE_PATH="${RUNNER_TEMP}/deploy.tar.gz"
 
-          # Create archive with ONLY standalone build files
-          # This is the optimized approach: only transfer what's needed to run
-          # - .next/standalone: Contains the minimal server files
-          # - .next/static: Contains static assets
-          # - public: Contains public assets
-          # - data: Contains SQLite database directory structure
+          # Create archive with standalone build files
+          # Next.js standalone structure:
+          # - .next/standalone/ contains server.js, node_modules, and .next/ subdirectory
+          # - .next/static/ contains static assets (must be at same level as standalone)
+          # - public/ contains public assets
+          # - data/ for SQLite database
           echo "Creating optimized standalone deployment archive..."
           
+          # Verify standalone structure
+          if [ ! -d ".next/standalone" ]; then
+            echo "Error: .next/standalone directory not found"
+            exit 1
+          fi
+          
+          if [ ! -d ".next/static" ]; then
+            echo "Error: .next/static directory not found"
+            exit 1
+          fi
+          
+          # Archive the entire .next directory (standalone + static) to maintain structure
+          # This ensures relative paths work correctly
           TAR_ARGS=(
             czf "$ARCHIVE_PATH"
             --exclude='.git'
@@ -337,10 +372,14 @@ jobs:
 
           mv "$ARCHIVE_PATH" ./deploy.tar.gz
           
-          # Show archive size
+          # Show archive size and verify contents
           ARCHIVE_SIZE=$(du -h deploy.tar.gz | cut -f1)
           echo "Deployment archive created successfully (Size: $ARCHIVE_SIZE)"
-          echo "Archive contains only: .next/standalone, .next/static, public, data"
+          echo "Archive contains: .next/standalone, .next/static, public, data"
+          
+          # Verify archive contents
+          echo "Verifying archive structure..."
+          tar -tzf deploy.tar.gz | head -20 || true
 
       - name: Install sshpass
         run: |
@@ -417,8 +456,10 @@ jobs:
             tar -xzf "$ARCHIVE_PATH" -C "$APP_DIR"
             rm -f "$ARCHIVE_PATH"
             
-            # Verify standalone build exists
+            # Verify standalone build structure
             STANDALONE_DIR="$APP_DIR/.next/standalone"
+            STATIC_DIR="$APP_DIR/.next/static"
+            
             if [ ! -d "$STANDALONE_DIR" ]; then
               echo "Error: Standalone build directory is missing after extraction"
               echo "APP_DIR contents:"
@@ -426,15 +467,43 @@ jobs:
               exit 1
             fi
             
+            if [ ! -d "$STATIC_DIR" ]; then
+              echo "Error: Static assets directory is missing after extraction"
+              exit 1
+            fi
+            
             # Verify server.js exists in standalone
             if [ ! -f "$STANDALONE_DIR/server.js" ]; then
               echo "Error: server.js not found in standalone build"
+              echo "Standalone directory contents:"
+              ls -la "$STANDALONE_DIR" | head -10 || true
+              exit 1
+            fi
+            
+            # Verify node_modules exists in standalone (should contain all dependencies including 'next')
+            if [ ! -d "$STANDALONE_DIR/node_modules" ]; then
+              echo "ERROR: node_modules not found in standalone build"
+              echo "This will cause module resolution failures"
+              echo "Standalone directory contents:"
+              ls -la "$STANDALONE_DIR" || true
+              exit 1
+            fi
+            
+            # Verify 'next' module exists
+            if [ ! -d "$STANDALONE_DIR/node_modules/next" ]; then
+              echo "ERROR: 'next' module not found in standalone/node_modules"
+              echo "Available modules:"
+              ls "$STANDALONE_DIR/node_modules" | head -20 || true
               exit 1
             fi
             
             echo "✓ Standalone build extracted successfully"
-            echo "Contents:"
-            ls -la "$APP_DIR" | head -10 || true
+            echo "Directory structure verified:"
+            echo "  - Standalone: $STANDALONE_DIR"
+            echo "  - Static: $STATIC_DIR"
+            echo "  - Server.js: $STANDALONE_DIR/server.js"
+            echo "  - node_modules: $STANDALONE_DIR/node_modules (exists)"
+            echo "  - next module: $STANDALONE_DIR/node_modules/next (exists)"
             
             # Check Node.js version (should be 20)
             REQUIRED_NODE_VERSION="20"
