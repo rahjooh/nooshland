@@ -155,29 +155,39 @@ jobs:
             SITE_LINK="/etc/nginx/sites-enabled/nooshland-ir"
             APP_DIR="$HOME/apps/nooshland.com"
             APP_PORT="4001"
+            
+            # Check if SSL certificates exist
+            SSL_CERT="/etc/letsencrypt/live/nooshland.ir/fullchain.pem"
+            SSL_KEY="/etc/letsencrypt/live/nooshland.ir/privkey.pem"
+            HAS_SSL=false
+            
+            if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
+              HAS_SSL=true
+              echo "SSL certificates found, configuring HTTPS"
+            else
+              echo "SSL certificates not found, configuring HTTP only"
+              echo "To enable HTTPS, run: sudo certbot certonly --nginx -d nooshland.ir -d www.nooshland.ir"
+            fi
 
-            $SUDO tee "$SITE_CONF" >/dev/null <<EOF
+            # Create nginx config based on SSL availability
+            if [ "$HAS_SSL" = true ]; then
+              $SUDO tee "$SITE_CONF" >/dev/null <<EOF
             server {
                 listen 80;
                 listen [::]:80;
                 server_name nooshland.ir www.nooshland.ir;
-
                 # Redirect HTTP to HTTPS
                 return 301 https://\$host\$request_uri;
             }
-
             server {
                 listen 443 ssl http2;
                 listen [::]:443 ssl http2;
                 server_name nooshland.ir www.nooshland.ir;
-
-                ssl_certificate /etc/letsencrypt/live/nooshland.ir/fullchain.pem;
-                ssl_certificate_key /etc/letsencrypt/live/nooshland.ir/privkey.pem;
-
+                ssl_certificate ${SSL_CERT};
+                ssl_certificate_key ${SSL_KEY};
                 ssl_protocols TLSv1.2 TLSv1.3;
                 ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256';
                 ssl_prefer_server_ciphers off;
-
                 # Proxy to Next.js app on port 4001
                 location / {
                     proxy_pass http://localhost:${APP_PORT};
@@ -190,7 +200,6 @@ jobs:
                     proxy_set_header X-Forwarded-Proto \$scheme;
                     proxy_cache_bypass \$http_upgrade;
                 }
-
                 # Gzip compression
                 gzip on;
                 gzip_vary on;
@@ -200,6 +209,34 @@ jobs:
                            application/x-javascript application/xml+rss;
             }
             EOF
+            else
+              $SUDO tee "$SITE_CONF" >/dev/null <<EOF
+            server {
+                listen 80;
+                listen [::]:80;
+                server_name nooshland.ir www.nooshland.ir;
+                # Proxy to Next.js app on port 4001
+                location / {
+                    proxy_pass http://localhost:${APP_PORT};
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade \$http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host \$host;
+                    proxy_set_header X-Real-IP \$remote_addr;
+                    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto \$scheme;
+                    proxy_cache_bypass \$http_upgrade;
+                }
+                # Gzip compression
+                gzip on;
+                gzip_vary on;
+                gzip_min_length 1024;
+                gzip_types text/css application/javascript application/json
+                           text/plain text/xml text/javascript
+                           application/x-javascript application/xml+rss;
+            }
+            EOF
+            fi
 
             $SUDO ln -sf "$SITE_CONF" "$SITE_LINK"
 
@@ -483,6 +520,19 @@ jobs:
             
             echo "Creating/updating nginx config to proxy to port $APP_PORT"
             
+            # Check if SSL certificates exist
+            SSL_CERT="/etc/letsencrypt/live/nooshland.ir/fullchain.pem"
+            SSL_KEY="/etc/letsencrypt/live/nooshland.ir/privkey.pem"
+            HAS_SSL=false
+            
+            if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
+              HAS_SSL=true
+              echo "SSL certificates found, configuring HTTPS"
+            else
+              echo "SSL certificates not found, configuring HTTP only"
+              echo "To enable HTTPS later, run: sudo certbot certonly --nginx -d nooshland.ir -d www.nooshland.ir"
+            fi
+            
             # Verify the app is running on the correct port
             echo "Verifying application is running on port $APP_PORT..."
             if command -v ss >/dev/null 2>&1; then
@@ -491,8 +541,9 @@ jobs:
               netstat -tlnp | grep ":$APP_PORT " || echo "WARNING: Port $APP_PORT is not listening"
             fi
 
-            # Create nginx config
-            $SUDO tee "$SITE_CONF" >/dev/null <<EOF
+            # Create nginx config based on SSL availability
+            if [ "$HAS_SSL" = true ]; then
+              $SUDO tee "$SITE_CONF" >/dev/null <<EOF
             server {
                 listen 80;
                 listen [::]:80;
@@ -503,13 +554,11 @@ jobs:
                 listen 443 ssl http2;
                 listen [::]:443 ssl http2;
                 server_name nooshland.ir www.nooshland.ir;
-                
-                ssl_certificate /etc/letsencrypt/live/nooshland.ir/fullchain.pem;
-                ssl_certificate_key /etc/letsencrypt/live/nooshland.ir/privkey.pem;
+                ssl_certificate ${SSL_CERT};
+                ssl_certificate_key ${SSL_KEY};
                 ssl_protocols TLSv1.2 TLSv1.3;
                 ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256';
                 ssl_prefer_server_ciphers off;
-                
                 # Proxy to Next.js app on port 4001
                 location / {
                     proxy_pass http://127.0.0.1:${APP_PORT};
@@ -521,13 +570,11 @@ jobs:
                     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
                     proxy_set_header X-Forwarded-Proto \$scheme;
                     proxy_cache_bypass \$http_upgrade;
-                    
                     # Timeouts
                     proxy_connect_timeout 60s;
                     proxy_send_timeout 60s;
                     proxy_read_timeout 60s;
                 }
-                
                 # Gzip compression
                 gzip on;
                 gzip_vary on;
@@ -537,6 +584,38 @@ jobs:
                            application/x-javascript application/xml+rss;
             }
             EOF
+            else
+              $SUDO tee "$SITE_CONF" >/dev/null <<EOF
+            server {
+                listen 80;
+                listen [::]:80;
+                server_name nooshland.ir www.nooshland.ir;
+                # Proxy to Next.js app on port 4001
+                location / {
+                    proxy_pass http://127.0.0.1:${APP_PORT};
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade \$http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host \$host;
+                    proxy_set_header X-Real-IP \$remote_addr;
+                    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto \$scheme;
+                    proxy_cache_bypass \$http_upgrade;
+                    # Timeouts
+                    proxy_connect_timeout 60s;
+                    proxy_send_timeout 60s;
+                    proxy_read_timeout 60s;
+                }
+                # Gzip compression
+                gzip on;
+                gzip_vary on;
+                gzip_min_length 1024;
+                gzip_types text/css application/javascript application/json
+                           text/plain text/xml text/javascript
+                           application/x-javascript application/xml+rss;
+            }
+            EOF
+            fi
             
             # Remove leading whitespace from nginx config (12 spaces from heredoc indentation)
             $SUDO sed -i 's/^            //' "$SITE_CONF"
