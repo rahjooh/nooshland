@@ -279,7 +279,41 @@ jobs:
           fi
 
       - name: Build project
-        run: NODE_OPTIONS="--max-old-space-size=2048" npm run build
+        run: |
+          echo "Building Next.js application in standalone mode..."
+          NODE_OPTIONS="--max-old-space-size=2048" npm run build
+          
+          # Verify standalone build was created
+          if [ ! -d ".next/standalone" ]; then
+            echo "::error::Standalone build directory not found after build"
+            echo "Build output:"
+            ls -la .next/ || true
+            exit 1
+          fi
+          
+          # Check if node_modules exists in standalone
+          if [ ! -d ".next/standalone/node_modules" ]; then
+            echo "::error::node_modules not found in standalone build"
+            echo "Standalone directory contents:"
+            ls -la .next/standalone/ || true
+            echo ""
+            echo "This usually means the build didn't complete properly."
+            echo "Trying to diagnose..."
+            
+            # Check if server.js exists
+            if [ -f ".next/standalone/server.js" ]; then
+              echo "server.js exists, but node_modules is missing"
+              echo "This might be a Next.js standalone build issue"
+            fi
+            
+            # List what's actually in standalone
+            echo "Contents of .next/standalone:"
+            find .next/standalone -maxdepth 2 -type f -o -type d | head -20 || true
+            
+            exit 1
+          fi
+          
+          echo "✓ Standalone build created successfully with node_modules"
         env:
           NODE_ENV: production
         # Performance optimizations applied:
@@ -346,18 +380,27 @@ jobs:
             exit 1
           fi
           
-          # Archive the entire .next directory (standalone + static) to maintain structure
-          # This ensures relative paths work correctly
+          # Archive standalone build files
+          # Important: Include .next/standalone/node_modules (should contain all dependencies)
+          # and .next/static for static assets
+          echo "Creating archive with standalone build..."
+          echo "Verifying files to archive:"
+          ls -la .next/standalone/ | head -10 || true
+          
           TAR_ARGS=(
             czf "$ARCHIVE_PATH"
             --exclude='.git'
-            --exclude='node_modules'
             --exclude='deploy.tar.gz'
             --exclude='deploy.tar.gz.*'
             --exclude='.next/cache'
+            # Include standalone directory (should contain node_modules)
             .next/standalone/
+            # Include static assets
             .next/static/
           )
+          
+          # Note: We're NOT excluding node_modules here because
+          # .next/standalone/node_modules contains the bundled dependencies
 
           # Add public/ only if it exists
           if [ -d "public" ]; then
@@ -377,9 +420,26 @@ jobs:
           echo "Deployment archive created successfully (Size: $ARCHIVE_SIZE)"
           echo "Archive contains: .next/standalone, .next/static, public, data"
           
-          # Verify archive contents
+          # Verify archive contents - check for node_modules
           echo "Verifying archive structure..."
-          tar -tzf deploy.tar.gz | head -20 || true
+          echo "Checking for node_modules in archive:"
+          if tar -tzf deploy.tar.gz | grep -q "\.next/standalone/node_modules"; then
+            echo "✓ node_modules found in archive"
+            tar -tzf deploy.tar.gz | grep "\.next/standalone/node_modules" | head -5 || true
+          else
+            echo "::error::node_modules NOT found in archive!"
+            echo "Archive contents:"
+            tar -tzf deploy.tar.gz | head -30 || true
+            exit 1
+          fi
+          
+          # Check for next module specifically
+          if tar -tzf deploy.tar.gz | grep -q "\.next/standalone/node_modules/next"; then
+            echo "✓ next module found in archive"
+          else
+            echo "::error::next module NOT found in archive!"
+            exit 1
+          fi
 
       - name: Install sshpass
         run: |
