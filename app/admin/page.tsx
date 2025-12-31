@@ -18,8 +18,27 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (isLoggedIn) {
       fetchStats()
+      // Auto-seed database if empty (only on first admin access)
+      seedDatabaseIfNeeded()
     }
   }, [isLoggedIn])
+
+  const seedDatabaseIfNeeded = async () => {
+    try {
+      // Check if database needs seeding by checking menu items count
+      const menuRes = await fetch('/api/menu')
+      const menu = await menuRes.json()
+      
+      if (menu.length === 0) {
+        // Database is empty, seed it
+        await fetch('/api/init', { method: 'POST' })
+        // Refresh stats after seeding
+        setTimeout(() => fetchStats(), 1000)
+      }
+    } catch (error) {
+      console.error('Failed to check/seed database:', error)
+    }
+  }
 
   const fetchStats = async () => {
     try {

@@ -97,6 +97,16 @@ jobs:
               echo "nginx is already installed"
             fi
 
+            # Install SQLite3 if not present
+            if ! command -v sqlite3 >/dev/null 2>&1; then
+              echo "Installing SQLite3..."
+              $SUDO apt-get update
+              $SUDO apt-get install -y sqlite3 libsqlite3-dev
+            else
+              echo "SQLite3 is already installed"
+              sqlite3 --version
+            fi
+
             # Check and install Node.js 20 if not present or wrong version
             REQUIRED_NODE_VERSION="20"
             if command -v node >/dev/null 2>&1; then
@@ -384,6 +394,19 @@ jobs:
               npm install --omit=dev --no-audit --progress=false
             fi
             echo "✓ Dependencies installed successfully"
+            
+            # Initialize database (run migrations and seed if needed)
+            echo "Initializing database..."
+            cd "$APP_DIR"
+            
+            # Create data directory if it doesn't exist
+            mkdir -p "$APP_DIR/data"
+            
+            # Database will be auto-initialized on first API call via lib/db.ts
+            # which automatically runs migrations on import
+            # For seeding, we can trigger it via API or it will be done on first admin access
+            echo "Database will be auto-initialized on first API call"
+            echo "To seed initial data, access the admin panel and it will be seeded automatically"
             
             # Install PM2 if not already installed
             if ! command -v pm2 >/dev/null 2>&1; then
