@@ -473,32 +473,51 @@ jobs:
           echo "Verifying archive structure..."
           echo "Checking for node_modules in archive:"
           
-          # Check if node_modules directory exists - use direct tar listing
-          # Avoid storing in variable to prevent broken pipe errors
-          if tar -tzf deploy.tar.gz 2>/dev/null | head -1000 | grep -q "node_modules"; then
+          # Check if node_modules directory exists - use a simple test
+          # Extract first few entries to a temp file to avoid pipe issues
+          TEMP_LIST=$(mktemp)
+          tar -tzf deploy.tar.gz 2>/dev/null | head -50 > "$TEMP_LIST" || true
+          
+          # Check if node_modules exists in the first 50 entries
+          if grep -q "node_modules" "$TEMP_LIST" 2>/dev/null; then
             echo "✓ node_modules found in archive"
             echo "Sample node_modules entries:"
-            tar -tzf deploy.tar.gz 2>/dev/null | grep "node_modules" | head -5 || true
+            grep "node_modules" "$TEMP_LIST" | head -5 || true
+            rm -f "$TEMP_LIST"
           else
-            echo "::error::node_modules NOT found in archive!"
-            echo "Archive contents (first 30 entries):"
-            tar -tzf deploy.tar.gz 2>/dev/null | head -30 || true
-            exit 1
+            echo "Checking full archive listing..."
+            # If not in first 50, check more entries
+            tar -tzf deploy.tar.gz 2>/dev/null | head -200 > "$TEMP_LIST" || true
+            if grep -q "node_modules" "$TEMP_LIST" 2>/dev/null; then
+              echo "✓ node_modules found in archive (after checking more entries)"
+              grep "node_modules" "$TEMP_LIST" | head -5 || true
+              rm -f "$TEMP_LIST"
+            else
+              echo "::error::node_modules NOT found in archive!"
+              echo "Archive contents (first 30 entries):"
+              head -30 "$TEMP_LIST" || true
+              rm -f "$TEMP_LIST"
+              exit 1
+            fi
           fi
           
           # Check for next module specifically
-          if tar -tzf deploy.tar.gz 2>/dev/null | head -1000 | grep -qE "(node_modules/next|node_modules/@next)"; then
+          TEMP_LIST2=$(mktemp)
+          tar -tzf deploy.tar.gz 2>/dev/null | head -200 > "$TEMP_LIST2" || true
+          if grep -qE "(node_modules/next|node_modules/@next)" "$TEMP_LIST2" 2>/dev/null; then
             echo "✓ next module found in archive"
+            rm -f "$TEMP_LIST2"
           else
             echo "Checking for next module (alternative patterns)..."
-            # Try checking for any next-related module
-            if tar -tzf deploy.tar.gz 2>/dev/null | head -1000 | grep -q "next"; then
+            if grep -q "next" "$TEMP_LIST2" 2>/dev/null; then
               echo "✓ next-related module found in archive"
-              tar -tzf deploy.tar.gz 2>/dev/null | grep "next" | head -3 || true
+              grep "next" "$TEMP_LIST2" | head -3 || true
+              rm -f "$TEMP_LIST2"
             else
               echo "::error::next module NOT found in archive!"
               echo "Available top-level modules in node_modules:"
               tar -tzf deploy.tar.gz 2>/dev/null | grep "node_modules/[^/]*$" | head -20 || true
+              rm -f "$TEMP_LIST2"
               exit 1
             fi
           fi
