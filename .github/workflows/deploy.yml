@@ -695,6 +695,18 @@ jobs:
               exit 1
             fi
             
+            # Verify static directory has content
+            if [ -z "$(ls -A $STATIC_DIR 2>/dev/null)" ]; then
+              echo "ERROR: Static directory is empty!"
+              echo "This will cause CSS/JS files not to load"
+              exit 1
+            fi
+            
+            echo "✓ Static directory verified with content"
+            echo "  Static files found: $(find $STATIC_DIR -type f | wc -l) files"
+            echo "  Sample static files:"
+            find "$STATIC_DIR" -type f | head -5 || true
+            
             # Verify server.js exists in standalone
             if [ ! -f "$STANDALONE_DIR/server.js" ]; then
               echo "Error: server.js not found in standalone build"
@@ -839,7 +851,27 @@ jobs:
             # Standalone mode: all dependencies are bundled, no npm install needed
             # Set working directory to standalone, but ensure paths are correct
             # Next.js standalone server.js will automatically find ../static and ../../public
-            PORT=$APP_PORT NODE_ENV=production pm2 start server.js \
+            # We need to ensure the server can find static files relative to its location
+            echo "Starting Next.js standalone server..."
+            echo "Working directory will be: $STANDALONE_DIR"
+            echo "Static files should be at: $STANDALONE_DIR/../static"
+            echo "Public files should be at: $APP_DIR/public"
+            
+            # Verify static files exist before starting
+            echo "Checking static files..."
+            if [ -d "$STATIC_DIR" ] && [ "$(ls -A $STATIC_DIR 2>/dev/null)" ]; then
+              echo "✓ Static directory has content"
+              echo "  Sample files: $(ls $STATIC_DIR | head -3 | tr '\n' ' ')"
+            else
+              echo "ERROR: Static directory is empty or missing!"
+              exit 1
+            fi
+            
+            # Start the server with explicit environment variables
+            # Next.js standalone mode needs to know where to find static files
+            PORT=$APP_PORT \
+            NODE_ENV=production \
+            pm2 start server.js \
               --name "nooshland" \
               --max-memory-restart 400M \
               --node-args="--max-old-space-size=400" \
@@ -847,15 +879,42 @@ jobs:
               --cwd "$STANDALONE_DIR"
             
             # Wait a moment for the server to start
-            sleep 2
+            echo "Waiting for server to start..."
+            sleep 5
             
-            # Verify the server is responding and can serve static assets
-            echo "Verifying server can serve static assets..."
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/_next/static 2>/dev/null | grep -q "200\|404"; then
-              echo "✓ Server is responding to static asset requests"
-            else
-              echo "WARNING: Server might not be serving static assets correctly"
-              echo "Check PM2 logs: pm2 logs nooshland"
+            # Verify the server is responding
+            echo "Verifying server is responding..."
+            for i in {1..10}; do
+              if curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/ 2>/dev/null | grep -q "200"; then
+                echo "✓ Server is responding on port $APP_PORT"
+                break
+              fi
+              if [ $i -eq 10 ]; then
+                echo "ERROR: Server is not responding after 10 attempts"
+                echo "PM2 status:"
+                pm2 status
+                echo "PM2 logs:"
+                pm2 logs nooshland --lines 30 --nostream || true
+                exit 1
+              fi
+              sleep 1
+            done
+            
+            # Test if static assets are accessible
+            echo "Testing static assets accessibility..."
+            STATIC_TEST=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/_next/static 2>/dev/null || echo "000")
+            echo "Static assets endpoint returned: HTTP $STATIC_TEST"
+            
+            # Try to access a specific static file if we can find one
+            if [ -d "$STATIC_DIR/css" ]; then
+              CSS_FILE=$(ls "$STATIC_DIR/css" 2>/dev/null | head -1)
+              if [ -n "$CSS_FILE" ]; then
+                CSS_TEST=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$APP_PORT/_next/static/css/$CSS_FILE" 2>/dev/null || echo "000")
+                echo "CSS file test ($CSS_FILE): HTTP $CSS_TEST"
+                if [ "$CSS_TEST" != "200" ]; then
+                  echo "WARNING: CSS file not accessible - this will cause styling issues"
+                fi
+              fi
             fi
             
             # Save PM2 configuration
@@ -1120,24 +1179,60 @@ jobs:
               echo "WARNING: Server might not be responding correctly"
             fi
             
-            # Test if static assets endpoint is accessible
-            STATIC_TEST=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/_next/static 2>/dev/null || echo "000")
-            if [ "$STATIC_TEST" = "200" ] || [ "$STATIC_TEST" = "404" ] || [ "$STATIC_TEST" = "403" ]; then
-              echo "✓ Static assets endpoint is accessible (HTTP $STATIC_TEST)"
+            # Test if we can access the actual HTML and check for static file references
+            echo "Fetching homepage HTML to check static file paths..."
+            HOME_HTML=$(curl -s http://localhost:$APP_PORT/ 2>/dev/null || echo "")
+            if [ -n "$HOME_HTML" ]; then
+              echo "✓ Homepage HTML retrieved (${#HOME_HTML} bytes)"
+              
+              # Check if HTML references static files
+              if echo "$HOME_HTML" | grep -q "_next/static"; then
+                echo "✓ HTML contains references to _next/static files"
+                
+                # Extract a static file path from HTML
+                STATIC_FILE_PATH=$(echo "$HOME_HTML" | grep -o '_next/static/[^"]*' | head -1 || true)
+                if [ -n "$STATIC_FILE_PATH" ]; then
+                  echo "  Found static file reference: $STATIC_FILE_PATH"
+                  
+                  # Test if this file is accessible
+                  STATIC_FILE_TEST=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$APP_PORT/$STATIC_FILE_PATH" 2>/dev/null || echo "000")
+                  echo "  Static file accessibility test: HTTP $STATIC_FILE_TEST"
+                  
+                  if [ "$STATIC_FILE_TEST" = "200" ]; then
+                    echo "✓ Static file is accessible - CSS/JS should load correctly"
+                  else
+                    echo "ERROR: Static file is NOT accessible (HTTP $STATIC_FILE_TEST)"
+                    echo "This will cause CSS/JS not to load!"
+                    echo ""
+                    echo "Checking if file exists on disk..."
+                    # Convert URL path to filesystem path
+                    FS_PATH="$STATIC_DIR/${STATIC_FILE_PATH#_next/static/}"
+                    if [ -f "$FS_PATH" ]; then
+                      echo "  File exists on disk: $FS_PATH"
+                      echo "  But server cannot serve it - this is a Next.js server issue"
+                    else
+                      echo "  File does NOT exist on disk: $FS_PATH"
+                      echo "  Expected location: $STATIC_DIR"
+                      ls -la "$STATIC_DIR" | head -10 || true
+                    fi
+                  fi
+                fi
+              else
+                echo "WARNING: HTML does not contain _next/static references"
+              fi
             else
-              echo "WARNING: Static assets endpoint returned HTTP $STATIC_TEST"
-              echo "This might indicate static files are not being served correctly"
+              echo "ERROR: Could not retrieve homepage HTML"
             fi
             
             # Verify directory structure one more time
             echo "=== Final Directory Structure Check ==="
-            echo "From standalone directory ($STANDALONE_DIR):"
-            ls -la "$STANDALONE_DIR/.." | grep -E "(static|public)" || echo "Checking parent directory..."
-            echo ""
             echo "Static directory: $STATIC_DIR"
             if [ -d "$STATIC_DIR" ]; then
               echo "✓ Static directory exists"
-              echo "  Contents: $(ls "$STATIC_DIR" | head -5 | tr '\n' ' ')"
+              STATIC_FILE_COUNT=$(find "$STATIC_DIR" -type f | wc -l)
+              echo "  Total static files: $STATIC_FILE_COUNT"
+              echo "  Sample files:"
+              find "$STATIC_DIR" -type f | head -5 || true
             else
               echo "ERROR: Static directory missing!"
             fi
