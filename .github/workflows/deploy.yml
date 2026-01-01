@@ -118,6 +118,16 @@ jobs:
               sqlite3 --version
             fi
 
+            # Install certbot for SSL certificate management
+            if ! command -v certbot >/dev/null 2>&1; then
+              echo "Installing certbot for SSL certificates..."
+              $SUDO apt-get update
+              $SUDO apt-get install -y certbot python3-certbot-nginx
+            else
+              echo "certbot is already installed"
+              certbot --version || true
+            fi
+
             # Check and install Node.js 20 if not present or wrong version
             REQUIRED_NODE_VERSION="20"
             if command -v node >/dev/null 2>&1; then
@@ -165,8 +175,7 @@ jobs:
               HAS_SSL=true
               echo "SSL certificates found, configuring HTTPS"
             else
-              echo "SSL certificates not found, configuring HTTP only"
-              echo "To enable HTTPS, run: sudo certbot certonly --nginx -d sphynx.ir -d www.sphynx.ir"
+              echo "SSL certificates not found, will attempt to obtain them"
             fi
 
             # Create nginx config based on SSL availability
@@ -284,11 +293,43 @@ jobs:
             
             # Try to reload/restart nginx (might fail if other configs are broken)
             echo "Attempting to reload nginx..."
-            $SUDO systemctl reload nginx 2>&1 || $SUDO systemctl restart nginx 2>&1 || {
+            if $SUDO systemctl reload nginx 2>&1 || $SUDO systemctl restart nginx 2>&1; then
+              echo "✓ Nginx reloaded/restarted successfully"
+              
+              # Now attempt to obtain SSL certificates if they don't exist
+              if [ "$HAS_SSL" = false ]; then
+                echo "Attempting to obtain SSL certificates for sphynx.ir..."
+                # Use certbot with nginx plugin to automatically configure SSL
+                # --non-interactive: Don't prompt for user input
+                # --agree-tos: Agree to terms of service
+                # --email: Use a default email (can be overridden with environment variable)
+                # --redirect: Automatically redirect HTTP to HTTPS
+                if $SUDO certbot --nginx \
+                  --non-interactive \
+                  --agree-tos \
+                  --email admin@sphynx.ir \
+                  --redirect \
+                  -d sphynx.ir \
+                  -d www.sphynx.ir 2>&1; then
+                  echo "✓ SSL certificates obtained and configured successfully"
+                  HAS_SSL=true
+                  
+                  # Reload nginx to apply SSL configuration
+                  $SUDO systemctl reload nginx || $SUDO systemctl restart nginx || true
+                else
+                  echo "WARNING: Failed to obtain SSL certificates"
+                  echo "This might be due to:"
+                  echo "  - Domain DNS not pointing to this server"
+                  echo "  - Port 80 not accessible from internet"
+                  echo "  - Rate limiting from Let's Encrypt"
+                  echo "Continuing with HTTP-only configuration..."
+                fi
+              fi
+            else
               echo "WARNING: Could not reload/restart nginx"
               echo "This might be due to other site configurations"
               echo "The sphynx.ir config will be applied during deployment"
-            }
+            fi
 
   deploy:
     name: Deploy to sphynx.ir
@@ -719,6 +760,20 @@ jobs:
             # which automatically runs migrations on import
             echo "Database will be auto-initialized on first API call"
             
+            # Install certbot for SSL certificate management (if not already installed)
+            if ! command -v certbot >/dev/null 2>&1; then
+              echo "Installing certbot for SSL certificates..."
+              if command -v sudo >/dev/null 2>&1; then
+                SUDO="sudo"
+              else
+                SUDO=""
+              fi
+              $SUDO apt-get update
+              $SUDO apt-get install -y certbot python3-certbot-nginx
+            else
+              echo "certbot is already installed"
+            fi
+            
             # Install PM2 if not already installed
             if ! command -v pm2 >/dev/null 2>&1; then
               echo "Installing PM2..."
@@ -939,8 +994,60 @@ jobs:
             # Reload nginx to apply changes
             if command -v nginx >/dev/null 2>&1; then
               if command -v systemctl >/dev/null 2>&1; then
-                $SUDO systemctl reload nginx || $SUDO systemctl restart nginx || true
-                echo "Nginx reloaded/restarted"
+                if $SUDO systemctl reload nginx 2>&1 || $SUDO systemctl restart nginx 2>&1; then
+                  echo "✓ Nginx reloaded/restarted successfully"
+                  
+                  # Now attempt to obtain SSL certificates if they don't exist
+                  if [ "$HAS_SSL" = false ]; then
+                    echo "Attempting to obtain SSL certificates for sphynx.ir..."
+                    echo "This requires:"
+                    echo "  1. Domain DNS pointing to this server (62.60.210.188)"
+                    echo "  2. Port 80 accessible from internet"
+                    echo "  3. No rate limiting from Let's Encrypt"
+                    
+                    # Use certbot with nginx plugin to automatically configure SSL
+                    # --non-interactive: Don't prompt for user input
+                    # --agree-tos: Agree to terms of service
+                    # --email: Use a default email (can be overridden with environment variable)
+                    # --redirect: Automatically redirect HTTP to HTTPS
+                    # --keep-until-expiring: Keep existing certs if they exist
+                    if $SUDO certbot --nginx \
+                      --non-interactive \
+                      --agree-tos \
+                      --email admin@sphynx.ir \
+                      --redirect \
+                      --keep-until-expiring \
+                      -d sphynx.ir \
+                      -d www.sphynx.ir 2>&1; then
+                      echo "✓ SSL certificates obtained and configured successfully"
+                      HAS_SSL=true
+                      
+                      # Verify certificates exist
+                      if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
+                        echo "✓ SSL certificates verified: $SSL_CERT"
+                        
+                        # Reload nginx to apply SSL configuration
+                        $SUDO systemctl reload nginx || $SUDO systemctl restart nginx || true
+                        echo "✓ Nginx reloaded with SSL configuration"
+                      else
+                        echo "WARNING: Certificates were created but not found at expected location"
+                      fi
+                    else
+                      echo "WARNING: Failed to obtain SSL certificates"
+                      echo "This might be due to:"
+                      echo "  - Domain DNS not pointing to this server (check: dig sphynx.ir)"
+                      echo "  - Port 80 not accessible from internet"
+                      echo "  - Rate limiting from Let's Encrypt (try again later)"
+                      echo "  - Cloudflare proxy blocking Let's Encrypt validation"
+                      echo ""
+                      echo "Continuing with HTTP-only configuration..."
+                      echo "You can manually obtain certificates later with:"
+                      echo "  sudo certbot --nginx -d sphynx.ir -d www.sphynx.ir"
+                    fi
+                  fi
+                else
+                  echo "WARNING: Could not reload/restart nginx"
+                fi
               else
                 $SUDO nginx -s reload || $SUDO service nginx reload || true
                 echo "Nginx reloaded"
