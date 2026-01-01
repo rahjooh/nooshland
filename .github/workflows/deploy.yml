@@ -679,6 +679,10 @@ jobs:
             tar -xzf "$ARCHIVE_PATH" -C "$APP_DIR"
             rm -f "$ARCHIVE_PATH"
             
+            # Note: We extract .next/static/ which may contain multiple build IDs
+            # Next.js will use the build ID from the standalone build's .next directory
+            # The static files should match the build ID in standalone/.next/BUILD_ID
+            
             # Verify standalone build structure
             STANDALONE_DIR="$APP_DIR/.next/standalone"
             STATIC_DIR="$APP_DIR/.next/static"
@@ -703,9 +707,21 @@ jobs:
             fi
             
             echo "✓ Static directory verified with content"
-            echo "  Static files found: $(find $STATIC_DIR -type f | wc -l) files"
+            STATIC_FILE_COUNT=$(find "$STATIC_DIR" -type f 2>/dev/null | wc -l)
+            echo "  Static files found: $STATIC_FILE_COUNT files"
+            echo "  Static directory structure:"
+            ls -la "$STATIC_DIR" | head -10 || true
             echo "  Sample static files:"
             find "$STATIC_DIR" -type f | head -5 || true
+            
+            # Check for CSS files specifically
+            if [ -d "$STATIC_DIR/css" ]; then
+              echo "  CSS files found: $(ls "$STATIC_DIR/css" | wc -l) files"
+              echo "  Sample CSS files:"
+              ls "$STATIC_DIR/css" | head -3 || true
+            else
+              echo "  WARNING: CSS directory not found in static"
+            fi
             
             # Verify server.js exists in standalone
             if [ ! -f "$STANDALONE_DIR/server.js" ]; then
@@ -835,6 +851,29 @@ jobs:
               exit 1
             fi
             
+            # Get the build ID from the standalone build to verify static files match
+            # The build ID is stored in .next/standalone/.next/BUILD_ID
+            BUILD_ID_FILE="$STANDALONE_DIR/.next/BUILD_ID"
+            if [ -f "$BUILD_ID_FILE" ]; then
+              CURRENT_BUILD_ID=$(cat "$BUILD_ID_FILE" 2>/dev/null | tr -d '[:space:]' || echo "")
+              if [ -n "$CURRENT_BUILD_ID" ]; then
+                echo "Current build ID from standalone: $CURRENT_BUILD_ID"
+                
+                # Verify this build ID exists in static directory
+                if [ -d "$STATIC_DIR/$CURRENT_BUILD_ID" ]; then
+                  echo "✓ Static files found for current build ID: $CURRENT_BUILD_ID"
+                else
+                  echo "WARNING: Static files for build ID '$CURRENT_BUILD_ID' not found in static directory"
+                  echo "Available build IDs in static:"
+                  ls -d "$STATIC_DIR"/*/ 2>/dev/null | xargs -n1 basename | grep -v '^css$' | grep -v '^chunks$' || echo "  (none found)"
+                  echo "This might cause 404 errors for static assets"
+                fi
+              fi
+            else
+              echo "Note: BUILD_ID file not found at $BUILD_ID_FILE"
+              echo "Next.js will determine build ID at runtime"
+            fi
+            
             # Verify public directory if it exists
             if [ -d "$APP_DIR/public" ]; then
               echo "✓ Public directory found"
@@ -905,16 +944,51 @@ jobs:
             STATIC_TEST=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/_next/static 2>/dev/null || echo "000")
             echo "Static assets endpoint returned: HTTP $STATIC_TEST"
             
-            # Try to access a specific static file if we can find one
-            if [ -d "$STATIC_DIR/css" ]; then
-              CSS_FILE=$(ls "$STATIC_DIR/css" 2>/dev/null | head -1)
-              if [ -n "$CSS_FILE" ]; then
-                CSS_TEST=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$APP_PORT/_next/static/css/$CSS_FILE" 2>/dev/null || echo "000")
-                echo "CSS file test ($CSS_FILE): HTTP $CSS_TEST"
-                if [ "$CSS_TEST" != "200" ]; then
-                  echo "WARNING: CSS file not accessible - this will cause styling issues"
+            # Try to access a specific static file - need to use correct build ID
+            # Next.js static files are organized as: /_next/static/{buildId}/css/{file}
+            echo "Finding build ID from HTML and testing static file access..."
+            HOME_HTML=$(curl -s http://localhost:$APP_PORT/ 2>/dev/null || echo "")
+            if [ -n "$HOME_HTML" ]; then
+              # Extract build ID from HTML (look for _next/static/{buildId}/)
+              BUILD_ID=$(echo "$HOME_HTML" | grep -o '_next/static/[^/]*' | head -1 | sed 's|_next/static/||' || echo "")
+              if [ -n "$BUILD_ID" ]; then
+                echo "  Build ID from HTML: $BUILD_ID"
+                
+                # Check if this build ID exists in static directory
+                if [ -d "$STATIC_DIR/$BUILD_ID" ]; then
+                  echo "  ✓ Build ID directory exists in static folder"
+                  
+                  # Try to find a CSS file in this build
+                  if [ -d "$STATIC_DIR/$BUILD_ID/css" ]; then
+                    CSS_FILE=$(ls "$STATIC_DIR/$BUILD_ID/css" 2>/dev/null | head -1)
+                    if [ -n "$CSS_FILE" ]; then
+                      CSS_PATH="/_next/static/$BUILD_ID/css/$CSS_FILE"
+                      echo "  Testing CSS file: $CSS_PATH"
+                      CSS_TEST=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$APP_PORT$CSS_PATH" 2>/dev/null || echo "000")
+                      echo "  CSS file accessibility: HTTP $CSS_TEST"
+                      if [ "$CSS_TEST" = "200" ]; then
+                        echo "  ✓ CSS file is accessible - styling should work"
+                      else
+                        echo "  ERROR: CSS file not accessible (HTTP $CSS_TEST)"
+                        echo "  This will cause the page to appear unstyled"
+                        echo "  File exists: $STATIC_DIR/$BUILD_ID/css/$CSS_FILE"
+                        echo "  But server returns 404 for: $CSS_PATH"
+                      fi
+                    fi
+                  else
+                    echo "  WARNING: CSS directory not found for build ID $BUILD_ID"
+                  fi
+                else
+                  echo "  ERROR: Build ID directory not found in static folder!"
+                  echo "  HTML references build ID: $BUILD_ID"
+                  echo "  But static directory has: $(ls $STATIC_DIR | grep -v '^css$' | grep -v '^chunks$' | tr '\n' ' ')"
+                  echo "  This suggests a build mismatch - static files don't match the HTML"
                 fi
+              else
+                echo "  WARNING: Could not extract build ID from HTML"
               fi
+            else
+              echo "  ERROR: Could not fetch HTML to determine build ID"
             fi
             
             # Save PM2 configuration
