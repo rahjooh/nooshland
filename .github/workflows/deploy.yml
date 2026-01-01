@@ -151,14 +151,14 @@ jobs:
               pm2 --version || echo "PM2 version check failed"
             fi
 
-            SITE_CONF="/etc/nginx/sites-available/nooshland-ir"
-            SITE_LINK="/etc/nginx/sites-enabled/nooshland-ir"
+            SITE_CONF="/etc/nginx/sites-available/sphynx-ir"
+            SITE_LINK="/etc/nginx/sites-enabled/sphynx-ir"
             APP_DIR="$HOME/apps/nooshland.com"
             APP_PORT="4001"
             
             # Check if SSL certificates exist
-            SSL_CERT="/etc/letsencrypt/live/nooshland.ir/fullchain.pem"
-            SSL_KEY="/etc/letsencrypt/live/nooshland.ir/privkey.pem"
+            SSL_CERT="/etc/letsencrypt/live/sphynx.ir/fullchain.pem"
+            SSL_KEY="/etc/letsencrypt/live/sphynx.ir/privkey.pem"
             HAS_SSL=false
             
             if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
@@ -166,7 +166,7 @@ jobs:
               echo "SSL certificates found, configuring HTTPS"
             else
               echo "SSL certificates not found, configuring HTTP only"
-              echo "To enable HTTPS, run: sudo certbot certonly --nginx -d nooshland.ir -d www.nooshland.ir"
+              echo "To enable HTTPS, run: sudo certbot certonly --nginx -d sphynx.ir -d www.sphynx.ir"
             fi
 
             # Create nginx config based on SSL availability
@@ -175,14 +175,14 @@ jobs:
             server {
                 listen 80;
                 listen [::]:80;
-                server_name nooshland.ir www.nooshland.ir;
+                server_name sphynx.ir www.sphynx.ir;
                 # Redirect HTTP to HTTPS
                 return 301 https://\$host\$request_uri;
             }
             server {
                 listen 443 ssl http2;
                 listen [::]:443 ssl http2;
-                server_name nooshland.ir www.nooshland.ir;
+                server_name sphynx.ir www.sphynx.ir;
                 ssl_certificate ${SSL_CERT};
                 ssl_certificate_key ${SSL_KEY};
                 ssl_protocols TLSv1.2 TLSv1.3;
@@ -214,7 +214,7 @@ jobs:
             server {
                 listen 80;
                 listen [::]:80;
-                server_name nooshland.ir www.nooshland.ir;
+                server_name sphynx.ir www.sphynx.ir;
                 # Proxy to Next.js app on port 4001
                 location / {
                     proxy_pass http://localhost:${APP_PORT};
@@ -251,14 +251,14 @@ jobs:
               echo "✓ Nginx config test passed"
             else
               # Check if the error is about our config or another config
-              if grep -q "nooshland.ir" /tmp/nginx-test.log; then
-                echo "ERROR: nginx config test failed for nooshland.ir!"
+              if grep -q "sphynx.ir" /tmp/nginx-test.log; then
+                echo "ERROR: nginx config test failed for sphynx.ir!"
                 cat /tmp/nginx-test.log
                 exit 1
               else
-                echo "WARNING: nginx config test failed, but error is not related to nooshland.ir"
+                echo "WARNING: nginx config test failed, but error is not related to sphynx.ir"
                 echo "This might be due to other site configs with missing SSL certificates"
-                echo "Our nooshland.ir config should still work. Continuing..."
+                echo "Our sphynx.ir config should still work. Continuing..."
                 cat /tmp/nginx-test.log || true
               fi
             fi
@@ -268,11 +268,11 @@ jobs:
             $SUDO systemctl reload nginx 2>&1 || $SUDO systemctl restart nginx 2>&1 || {
               echo "WARNING: Could not reload/restart nginx"
               echo "This might be due to other site configurations"
-              echo "The nooshland.ir config will be applied during deployment"
+              echo "The sphynx.ir config will be applied during deployment"
             }
 
   deploy:
-    name: Deploy to nooshland.ir
+    name: Deploy to sphynx.ir
     runs-on: ubuntu-latest
     needs: ssh-test
     environment:
@@ -458,12 +458,12 @@ jobs:
             }
           else
             echo "No public directory, creating archive without it"
-            tar czf "$ARCHIVE_PATH" \
+          tar czf "$ARCHIVE_PATH" \
               --dereference \
-              --exclude='.git' \
-              --exclude='deploy.tar.gz' \
-              --exclude='deploy.tar.gz.*' \
-              --exclude='.next/cache' \
+            --exclude='.git' \
+            --exclude='deploy.tar.gz' \
+            --exclude='deploy.tar.gz.*' \
+            --exclude='.next/cache' \
               --exclude='node_modules/.cache' \
               .next/standalone/node_modules \
               .next/standalone/.next \
@@ -749,14 +749,14 @@ jobs:
             ABS_APP_DIR="$(cd "$APP_DIR" && pwd)"
             
             # Update nginx config with proxy to port 4001
-            SITE_CONF="/etc/nginx/sites-available/nooshland-ir"
-            SITE_LINK="/etc/nginx/sites-enabled/nooshland-ir"
+            SITE_CONF="/etc/nginx/sites-available/sphynx-ir"
+            SITE_LINK="/etc/nginx/sites-enabled/sphynx-ir"
             
             echo "Creating/updating nginx config to proxy to port $APP_PORT"
             
             # Check if SSL certificates exist
-            SSL_CERT="/etc/letsencrypt/live/nooshland.ir/fullchain.pem"
-            SSL_KEY="/etc/letsencrypt/live/nooshland.ir/privkey.pem"
+            SSL_CERT="/etc/letsencrypt/live/sphynx.ir/fullchain.pem"
+            SSL_KEY="/etc/letsencrypt/live/sphynx.ir/privkey.pem"
             HAS_SSL=false
             
             if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
@@ -764,7 +764,7 @@ jobs:
               echo "SSL certificates found, configuring HTTPS"
             else
               echo "SSL certificates not found, configuring HTTP only"
-              echo "To enable HTTPS later, run: sudo certbot certonly --nginx -d nooshland.ir -d www.nooshland.ir"
+              echo "To enable HTTPS later, run: sudo certbot certonly --nginx -d sphynx.ir -d www.sphynx.ir"
             fi
             
             # Verify the app is running on the correct port
@@ -781,13 +781,13 @@ jobs:
             server {
                 listen 80;
                 listen [::]:80;
-                server_name nooshland.ir www.nooshland.ir;
+                server_name sphynx.ir www.sphynx.ir;
                 return 301 https://\$host\$request_uri;
             }
             server {
                 listen 443 ssl http2;
                 listen [::]:443 ssl http2;
-                server_name nooshland.ir www.nooshland.ir;
+                server_name sphynx.ir www.sphynx.ir;
                 ssl_certificate ${SSL_CERT};
                 ssl_certificate_key ${SSL_KEY};
                 ssl_protocols TLSv1.2 TLSv1.3;
@@ -823,7 +823,7 @@ jobs:
             server {
                 listen 80;
                 listen [::]:80;
-                server_name nooshland.ir www.nooshland.ir;
+                server_name sphynx.ir www.sphynx.ir;
                 # Proxy to Next.js app on port 4001
                 location / {
                     proxy_pass http://127.0.0.1:${APP_PORT};
@@ -860,12 +860,12 @@ jobs:
             echo "Nginx config created/updated. Proxying to port $APP_PORT"
             
             # Verify nginx config content
-            echo "=== Nginx config for nooshland.ir ==="
-            $SUDO cat "$SITE_CONF" | grep -A 5 "server_name nooshland.ir" || true
+            echo "=== Nginx config for sphynx.ir ==="
+            $SUDO cat "$SITE_CONF" | grep -A 5 "server_name sphynx.ir" || true
             
             # Check for conflicting server blocks
             echo "=== Checking for other nginx server blocks ==="
-            $SUDO grep -r "server_name" /etc/nginx/sites-enabled/ 2>/dev/null | grep -v "nooshland.ir" || true
+            $SUDO grep -r "server_name" /etc/nginx/sites-enabled/ 2>/dev/null | grep -v "sphynx.ir" || true
             
             # Verify which ports are being used
             echo "=== Checking active nginx server blocks ==="
@@ -878,14 +878,14 @@ jobs:
               echo "✓ Nginx config test passed"
             else
               # Check if the error is about our config or another config
-              if grep -q "nooshland.ir" /tmp/nginx-test.log; then
-                echo "ERROR: nginx config test failed for nooshland.ir!"
+              if grep -q "sphynx.ir" /tmp/nginx-test.log; then
+                echo "ERROR: nginx config test failed for sphynx.ir!"
                 cat /tmp/nginx-test.log
                 exit 1
               else
-                echo "WARNING: nginx config test failed, but error is not related to nooshland.ir"
+                echo "WARNING: nginx config test failed, but error is not related to sphynx.ir"
                 echo "This might be due to other site configs with missing SSL certificates"
-                echo "Our nooshland.ir config should still work. Continuing..."
+                echo "Our sphynx.ir config should still work. Continuing..."
                 cat /tmp/nginx-test.log || true
               fi
             fi
@@ -894,9 +894,9 @@ jobs:
             echo "=== Checking for default_server directives ==="
             $SUDO grep -r "default_server" /etc/nginx/sites-enabled/ 2>/dev/null || echo "No default_server found"
             
-            # Ensure no default server block is catching nooshland.ir
+            # Ensure no default server block is catching sphynx.ir
             echo "=== Verifying server_name matching ==="
-            $SUDO nginx -T 2>/dev/null | grep -B 2 -A 10 "server_name.*nooshland.ir" || echo "Could not find nooshland.ir server block"
+            $SUDO nginx -T 2>/dev/null | grep -B 2 -A 10 "server_name.*sphynx.ir" || echo "Could not find sphynx.ir server block"
             
             # Reload nginx to apply changes
             if command -v nginx >/dev/null 2>&1; then
@@ -930,7 +930,7 @@ jobs:
             
             echo "=== Deployment Complete ==="
             echo "Application should be running on port $APP_PORT"
-            echo "Nginx should be proxying nooshland.ir to localhost:$APP_PORT"
+            echo "Nginx should be proxying sphynx.ir to localhost:$APP_PORT"
             echo ""
             echo "=== Performance Optimizations Active ==="
             echo "✓ Standalone mode enabled (minimal footprint, no npm install)"
