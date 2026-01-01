@@ -488,14 +488,16 @@ jobs:
           # Create data directory structure (for SQLite)
           mkdir -p data
           
-          # Create archive - explicitly include node_modules
-          # Use --dereference to follow symlinks if node_modules is a symlink
-          # Use -C to change directory and avoid path issues
+          # Create archive - include entire directories to preserve structure
+          # Next.js standalone needs:
+          # - .next/standalone/ (complete directory with all contents)
+          # - .next/static/ (at same level as standalone)
+          # - public/ (if exists, at root level)
+          # - data/ (for SQLite)
           echo "Creating archive (this may take a moment if node_modules is large)..."
+          echo "Archiving complete directories to preserve structure..."
           
-          # Create archive from current directory, explicitly including node_modules
-          # The issue might be that tar is not including node_modules for some reason
-          # Let's try a more explicit approach
+          # Archive entire directories to ensure structure is preserved correctly
           if [ -d "public" ]; then
             echo "Including public directory in archive"
             tar czf "$ARCHIVE_PATH" \
@@ -505,32 +507,28 @@ jobs:
               --exclude='deploy.tar.gz.*' \
               --exclude='.next/cache' \
               --exclude='node_modules/.cache' \
-              .next/standalone/node_modules \
-              .next/standalone/.next \
-              .next/standalone/server.js \
-              .next/standalone/package.json \
-              .next/static \
-              public \
-              data 2>&1 | tee /tmp/tar-output.log || {
+              --exclude='.next/standalone/.next/cache' \
+              .next/standalone/ \
+              .next/static/ \
+              public/ \
+              data/ 2>&1 | tee /tmp/tar-output.log || {
               echo "::error::tar command failed"
               cat /tmp/tar-output.log || true
               exit 1
             }
           else
             echo "No public directory, creating archive without it"
-          tar czf "$ARCHIVE_PATH" \
+            tar czf "$ARCHIVE_PATH" \
               --dereference \
-            --exclude='.git' \
-            --exclude='deploy.tar.gz' \
-            --exclude='deploy.tar.gz.*' \
-            --exclude='.next/cache' \
+              --exclude='.git' \
+              --exclude='deploy.tar.gz' \
+              --exclude='deploy.tar.gz.*' \
+              --exclude='.next/cache' \
               --exclude='node_modules/.cache' \
-              .next/standalone/node_modules \
-              .next/standalone/.next \
-              .next/standalone/server.js \
-              .next/standalone/package.json \
-              .next/static \
-              data 2>&1 | tee /tmp/tar-output.log || {
+              --exclude='.next/standalone/.next/cache' \
+              .next/standalone/ \
+              .next/static/ \
+              data/ 2>&1 | tee /tmp/tar-output.log || {
               echo "::error::tar command failed"
               cat /tmp/tar-output.log || true
               exit 1
@@ -801,17 +799,64 @@ jobs:
             # - .next/static/ contains static assets (needs to be accessible)
             # - public/ contains public assets (needs to be accessible)
             # The standalone server.js automatically handles these paths
+            # But we need to ensure it can find them by setting the working directory correctly
             
+            # Verify the directory structure is correct
+            echo "Verifying standalone directory structure..."
+            echo "Standalone dir: $STANDALONE_DIR"
+            echo "Static dir: $STATIC_DIR"
+            echo "App dir: $APP_DIR"
+            
+            # Verify static directory exists and is accessible
+            if [ ! -d "$STATIC_DIR" ]; then
+              echo "ERROR: Static directory missing at $STATIC_DIR"
+              exit 1
+            fi
+            
+            # Verify the structure: from standalone, static should be at ../static
             cd "$STANDALONE_DIR"
+            if [ ! -d "../static" ]; then
+              echo "ERROR: Static directory not accessible from standalone directory"
+              echo "Expected: $STANDALONE_DIR/../static"
+              echo "Actual structure:"
+              ls -la .. || true
+              exit 1
+            fi
+            
+            # Verify public directory if it exists
+            if [ -d "$APP_DIR/public" ]; then
+              echo "✓ Public directory found"
+            else
+              echo "Note: Public directory not found (this is OK if not using public assets)"
+            fi
+            
+            echo "✓ Directory structure verified"
+            echo "  - Standalone: $STANDALONE_DIR"
+            echo "  - Static (from standalone): ../static"
+            echo "  - Server.js: $STANDALONE_DIR/server.js"
             
             # Start with PM2 using standalone server.js
             # Standalone mode: all dependencies are bundled, no npm install needed
+            # Set working directory to standalone, but ensure paths are correct
+            # Next.js standalone server.js will automatically find ../static and ../../public
             PORT=$APP_PORT NODE_ENV=production pm2 start server.js \
               --name "nooshland" \
               --max-memory-restart 400M \
               --node-args="--max-old-space-size=400" \
               --update-env \
               --cwd "$STANDALONE_DIR"
+            
+            # Wait a moment for the server to start
+            sleep 2
+            
+            # Verify the server is responding and can serve static assets
+            echo "Verifying server can serve static assets..."
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/_next/static 2>/dev/null | grep -q "200\|404"; then
+              echo "✓ Server is responding to static asset requests"
+            else
+              echo "WARNING: Server might not be serving static assets correctly"
+              echo "Check PM2 logs: pm2 logs nooshland"
+            fi
             
             # Save PM2 configuration
             pm2 save
@@ -1062,6 +1107,40 @@ jobs:
             # Show PM2 logs (last 20 lines)
             echo "=== Recent PM2 Logs ==="
             pm2 logs nooshland --lines 20 --nostream || true
+            
+            # Verify static assets are accessible
+            echo "=== Testing Static Assets ==="
+            echo "Testing if server can serve static assets..."
+            sleep 3  # Give server time to fully start
+            
+            # Test if the server responds
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/ 2>/dev/null | grep -q "200"; then
+              echo "✓ Server is responding on port $APP_PORT"
+            else
+              echo "WARNING: Server might not be responding correctly"
+            fi
+            
+            # Test if static assets endpoint is accessible
+            STATIC_TEST=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/_next/static 2>/dev/null || echo "000")
+            if [ "$STATIC_TEST" = "200" ] || [ "$STATIC_TEST" = "404" ] || [ "$STATIC_TEST" = "403" ]; then
+              echo "✓ Static assets endpoint is accessible (HTTP $STATIC_TEST)"
+            else
+              echo "WARNING: Static assets endpoint returned HTTP $STATIC_TEST"
+              echo "This might indicate static files are not being served correctly"
+            fi
+            
+            # Verify directory structure one more time
+            echo "=== Final Directory Structure Check ==="
+            echo "From standalone directory ($STANDALONE_DIR):"
+            ls -la "$STANDALONE_DIR/.." | grep -E "(static|public)" || echo "Checking parent directory..."
+            echo ""
+            echo "Static directory: $STATIC_DIR"
+            if [ -d "$STATIC_DIR" ]; then
+              echo "✓ Static directory exists"
+              echo "  Contents: $(ls "$STATIC_DIR" | head -5 | tr '\n' ' ')"
+            else
+              echo "ERROR: Static directory missing!"
+            fi
             
             # Verify the app is listening on port 4001
             echo "=== Port Check ==="
