@@ -464,6 +464,33 @@ jobs:
             exit 1
           fi
           
+          # Verify static files structure before archiving
+          echo "Verifying static files structure..."
+          BUILD_ID_FILE=".next/standalone/.next/BUILD_ID"
+          if [ -f "$BUILD_ID_FILE" ]; then
+            CURRENT_BUILD_ID=$(cat "$BUILD_ID_FILE" 2>/dev/null | tr -d '[:space:]' || echo "")
+            if [ -n "$CURRENT_BUILD_ID" ]; then
+              echo "Current build ID: $CURRENT_BUILD_ID"
+              
+              # Check if CSS files exist in the expected location
+              if [ -d ".next/static/$CURRENT_BUILD_ID/css" ]; then
+                CSS_COUNT=$(ls ".next/static/$CURRENT_BUILD_ID/css" 2>/dev/null | wc -l)
+                echo "✓ Found $CSS_COUNT CSS files in .next/static/$CURRENT_BUILD_ID/css"
+              elif [ -d ".next/standalone/.next/static/$CURRENT_BUILD_ID/css" ]; then
+                echo "WARNING: CSS files found in standalone/.next/static instead of .next/static"
+                echo "Copying CSS files to correct location..."
+                mkdir -p ".next/static/$CURRENT_BUILD_ID"
+                cp -r ".next/standalone/.next/static/$CURRENT_BUILD_ID/css" ".next/static/$CURRENT_BUILD_ID/css" || true
+                echo "✓ CSS files copied to .next/static/$CURRENT_BUILD_ID/css"
+              else
+                echo "WARNING: No CSS files found for build ID $CURRENT_BUILD_ID"
+                echo "This might cause styling issues"
+                echo "Checking what's in static directory:"
+                ls -la ".next/static" | head -10 || true
+              fi
+            fi
+          fi
+          
           # Archive standalone build files
           # Important: Include .next/standalone/node_modules (should contain all dependencies)
           # and .next/static for static assets
@@ -683,27 +710,46 @@ jobs:
             # Next.js will use the build ID from the standalone build's .next directory
             # The static files should match the build ID in standalone/.next/BUILD_ID
             
-            # Fix static file structure if CSS files are at root instead of in build ID folder
-            # This can happen if the build structure is incorrect
+            # Verify standalone build structure
             STANDALONE_DIR="$APP_DIR/.next/standalone"
             STATIC_DIR="$APP_DIR/.next/static"
-            BUILD_ID_FILE="$STANDALONE_DIR/.next/BUILD_ID"
             
-            if [ -f "$BUILD_ID_FILE" ] && [ -d "$STATIC_DIR" ]; then
-              CURRENT_BUILD_ID=$(cat "$BUILD_ID_FILE" 2>/dev/null | tr -d '[:space:]' || echo "")
-              if [ -n "$CURRENT_BUILD_ID" ] && [ -d "$STATIC_DIR/$CURRENT_BUILD_ID" ]; then
-                # Check if CSS files are at root but should be in build ID folder
-                if [ -d "$STATIC_DIR/css" ] && [ ! -d "$STATIC_DIR/$CURRENT_BUILD_ID/css" ]; then
-                  echo "Fixing static file structure: moving CSS files to build ID folder..."
-                  mkdir -p "$STATIC_DIR/$CURRENT_BUILD_ID"
-                  if [ -d "$STATIC_DIR/css" ]; then
-                    mv "$STATIC_DIR/css" "$STATIC_DIR/$CURRENT_BUILD_ID/css" || true
-                    echo "✓ CSS files moved to $STATIC_DIR/$CURRENT_BUILD_ID/css"
-                  fi
-                  # Also move chunks if they're at root
-                  if [ -d "$STATIC_DIR/chunks" ] && [ ! -d "$STATIC_DIR/$CURRENT_BUILD_ID/chunks" ]; then
-                    mv "$STATIC_DIR/chunks" "$STATIC_DIR/$CURRENT_BUILD_ID/chunks" || true
-                    echo "✓ Chunks moved to $STATIC_DIR/$CURRENT_BUILD_ID/chunks"
+            # Debug: Check what's actually in the static directory
+            echo "Checking static directory structure..."
+            if [ -d "$STATIC_DIR" ]; then
+              echo "Static directory contents:"
+              ls -la "$STATIC_DIR" | head -15 || true
+              
+              # Get build ID and check its structure
+              BUILD_ID_FILE="$STANDALONE_DIR/.next/BUILD_ID"
+              if [ -f "$BUILD_ID_FILE" ]; then
+                CURRENT_BUILD_ID=$(cat "$BUILD_ID_FILE" 2>/dev/null | tr -d '[:space:]' || echo "")
+                if [ -n "$CURRENT_BUILD_ID" ]; then
+                  echo "Build ID: $CURRENT_BUILD_ID"
+                  if [ -d "$STATIC_DIR/$CURRENT_BUILD_ID" ]; then
+                    echo "Build ID directory contents:"
+                    ls -la "$STATIC_DIR/$CURRENT_BUILD_ID" | head -10 || true
+                    
+                    # Check if CSS files exist in the standalone build's .next directory
+                    # Sometimes CSS files are in .next/standalone/.next/static instead
+                    STANDALONE_STATIC="$STANDALONE_DIR/.next/static"
+                    if [ -d "$STANDALONE_STATIC" ]; then
+                      echo "Checking standalone .next/static directory..."
+                      if [ -d "$STANDALONE_STATIC/$CURRENT_BUILD_ID/css" ]; then
+                        echo "Found CSS files in standalone build, copying to static directory..."
+                        mkdir -p "$STATIC_DIR/$CURRENT_BUILD_ID"
+                        cp -r "$STANDALONE_STATIC/$CURRENT_BUILD_ID/css" "$STATIC_DIR/$CURRENT_BUILD_ID/css" || true
+                        echo "✓ CSS files copied to $STATIC_DIR/$CURRENT_BUILD_ID/css"
+                      fi
+                      if [ -d "$STANDALONE_STATIC/$CURRENT_BUILD_ID/chunks" ]; then
+                        echo "Found chunks in standalone build, copying to static directory..."
+                        mkdir -p "$STATIC_DIR/$CURRENT_BUILD_ID"
+                        cp -r "$STANDALONE_STATIC/$CURRENT_BUILD_ID/chunks" "$STATIC_DIR/$CURRENT_BUILD_ID/chunks" || true
+                        echo "✓ Chunks copied to $STATIC_DIR/$CURRENT_BUILD_ID/chunks"
+                      fi
+                    fi
+                  else
+                    echo "WARNING: Build ID directory not found: $STATIC_DIR/$CURRENT_BUILD_ID"
                   fi
                 fi
               fi
