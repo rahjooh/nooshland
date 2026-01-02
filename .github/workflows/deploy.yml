@@ -683,6 +683,32 @@ jobs:
             # Next.js will use the build ID from the standalone build's .next directory
             # The static files should match the build ID in standalone/.next/BUILD_ID
             
+            # Fix static file structure if CSS files are at root instead of in build ID folder
+            # This can happen if the build structure is incorrect
+            STANDALONE_DIR="$APP_DIR/.next/standalone"
+            STATIC_DIR="$APP_DIR/.next/static"
+            BUILD_ID_FILE="$STANDALONE_DIR/.next/BUILD_ID"
+            
+            if [ -f "$BUILD_ID_FILE" ] && [ -d "$STATIC_DIR" ]; then
+              CURRENT_BUILD_ID=$(cat "$BUILD_ID_FILE" 2>/dev/null | tr -d '[:space:]' || echo "")
+              if [ -n "$CURRENT_BUILD_ID" ] && [ -d "$STATIC_DIR/$CURRENT_BUILD_ID" ]; then
+                # Check if CSS files are at root but should be in build ID folder
+                if [ -d "$STATIC_DIR/css" ] && [ ! -d "$STATIC_DIR/$CURRENT_BUILD_ID/css" ]; then
+                  echo "Fixing static file structure: moving CSS files to build ID folder..."
+                  mkdir -p "$STATIC_DIR/$CURRENT_BUILD_ID"
+                  if [ -d "$STATIC_DIR/css" ]; then
+                    mv "$STATIC_DIR/css" "$STATIC_DIR/$CURRENT_BUILD_ID/css" || true
+                    echo "✓ CSS files moved to $STATIC_DIR/$CURRENT_BUILD_ID/css"
+                  fi
+                  # Also move chunks if they're at root
+                  if [ -d "$STATIC_DIR/chunks" ] && [ ! -d "$STATIC_DIR/$CURRENT_BUILD_ID/chunks" ]; then
+                    mv "$STATIC_DIR/chunks" "$STATIC_DIR/$CURRENT_BUILD_ID/chunks" || true
+                    echo "✓ Chunks moved to $STATIC_DIR/$CURRENT_BUILD_ID/chunks"
+                  fi
+                fi
+              fi
+            fi
+            
             # Verify standalone build structure
             STANDALONE_DIR="$APP_DIR/.next/standalone"
             STATIC_DIR="$APP_DIR/.next/static"
@@ -862,6 +888,22 @@ jobs:
                 # Verify this build ID exists in static directory
                 if [ -d "$STATIC_DIR/$CURRENT_BUILD_ID" ]; then
                   echo "✓ Static files found for current build ID: $CURRENT_BUILD_ID"
+                  
+                  # Check what's inside the build ID directory
+                  echo "  Contents of build ID directory:"
+                  ls -la "$STATIC_DIR/$CURRENT_BUILD_ID" | head -10 || true
+                  
+                  # Check if CSS files are in the build ID directory or at root
+                  if [ -d "$STATIC_DIR/$CURRENT_BUILD_ID/css" ]; then
+                    echo "  ✓ CSS directory found in build ID folder"
+                  elif [ -d "$STATIC_DIR/css" ]; then
+                    echo "  WARNING: CSS directory is at root of static, not in build ID folder"
+                    echo "  This suggests a build structure mismatch"
+                    echo "  CSS files at: $STATIC_DIR/css"
+                    echo "  Expected at: $STATIC_DIR/$CURRENT_BUILD_ID/css"
+                  else
+                    echo "  WARNING: No CSS directory found"
+                  fi
                 else
                   echo "WARNING: Static files for build ID '$CURRENT_BUILD_ID' not found in static directory"
                   echo "Available build IDs in static:"
