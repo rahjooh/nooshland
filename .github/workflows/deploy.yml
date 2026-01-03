@@ -375,6 +375,47 @@ jobs:
             exit 1
           fi
           
+          # Verify static files were generated
+          if [ ! -d ".next/static" ]; then
+            echo "::error::Static files directory not found after build"
+            exit 1
+          fi
+          
+          # Check for CSS files in static directory
+          echo "Checking for CSS files in build output..."
+          BUILD_ID_FILE=".next/standalone/.next/BUILD_ID"
+          if [ -f "$BUILD_ID_FILE" ]; then
+            BUILD_ID=$(cat "$BUILD_ID_FILE" 2>/dev/null | tr -d '[:space:]' || echo "")
+            if [ -n "$BUILD_ID" ]; then
+              echo "Build ID: $BUILD_ID"
+              
+              # Check if CSS files exist in .next/static
+              if [ -d ".next/static/$BUILD_ID/css" ]; then
+                CSS_COUNT=$(ls ".next/static/$BUILD_ID/css" 2>/dev/null | wc -l)
+                echo "✓ Found $CSS_COUNT CSS files in .next/static/$BUILD_ID/css"
+                ls ".next/static/$BUILD_ID/css" | head -5 || true
+              else
+                echo "WARNING: No CSS directory found in .next/static/$BUILD_ID/"
+                echo "Checking what's in .next/static:"
+                ls -la ".next/static" | head -10 || true
+                
+                # Check if CSS files are in standalone/.next/static
+                if [ -d ".next/standalone/.next/static/$BUILD_ID/css" ]; then
+                  echo "Found CSS files in standalone/.next/static, copying to .next/static..."
+                  mkdir -p ".next/static/$BUILD_ID"
+                  cp -r ".next/standalone/.next/static/$BUILD_ID/css" ".next/static/$BUILD_ID/css"
+                  echo "✓ CSS files copied to .next/static/$BUILD_ID/css"
+                else
+                  echo "ERROR: CSS files not found in either location!"
+                  echo "This will cause styling issues. Checking standalone structure:"
+                  find ".next/standalone/.next" -name "*.css" 2>/dev/null | head -5 || true
+                fi
+              fi
+            fi
+          else
+            echo "WARNING: BUILD_ID file not found, cannot verify CSS files"
+          fi
+          
           # Check if node_modules exists in standalone
           if [ ! -d ".next/standalone/node_modules" ]; then
             echo "::error::node_modules not found in standalone build"
