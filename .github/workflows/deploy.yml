@@ -857,6 +857,16 @@ jobs:
                         echo "✓ Chunks copied to $STATIC_DIR/$CURRENT_BUILD_ID/chunks"
                       fi
                     fi
+                    
+                    # CRITICAL: If CSS files are at root but not in build ID folder, copy them
+                    # Next.js standalone server expects CSS files in build ID folder
+                    if [ -d "$STATIC_DIR/css" ] && [ ! -d "$STATIC_DIR/$CURRENT_BUILD_ID/css" ]; then
+                      echo "CSS files at root but not in build ID folder - copying to build ID folder..."
+                      mkdir -p "$STATIC_DIR/$CURRENT_BUILD_ID/css"
+                      cp -r "$STATIC_DIR/css"/* "$STATIC_DIR/$CURRENT_BUILD_ID/css/" 2>/dev/null || true
+                      chmod -R 644 "$STATIC_DIR/$CURRENT_BUILD_ID/css"/*.css 2>/dev/null || true
+                      echo "✓ CSS files copied to $STATIC_DIR/$CURRENT_BUILD_ID/css"
+                    fi
                   else
                     echo "WARNING: Build ID directory not found: $STATIC_DIR/$CURRENT_BUILD_ID"
                   fi
@@ -1018,6 +1028,18 @@ jobs:
                     # Ensure CSS files have correct permissions
                     chmod -R 644 "$STATIC_DIR/css"/*.css 2>/dev/null || true
                     echo "✓ CSS file permissions set"
+                    
+                    # CRITICAL FIX: Copy CSS files to build ID folder
+                    # Next.js standalone server expects CSS files in build ID folder
+                    # even if HTML references them without build ID
+                    if [ -n "$CURRENT_BUILD_ID" ]; then
+                      echo "Copying CSS files to build ID folder for Next.js standalone server..."
+                      mkdir -p "$STATIC_DIR/$CURRENT_BUILD_ID/css"
+                      cp -r "$STATIC_DIR/css"/* "$STATIC_DIR/$CURRENT_BUILD_ID/css/" 2>/dev/null || true
+                      chmod -R 644 "$STATIC_DIR/$CURRENT_BUILD_ID/css"/*.css 2>/dev/null || true
+                      echo "✓ CSS files also copied to $STATIC_DIR/$CURRENT_BUILD_ID/css"
+                    fi
+                    
                     CSS_FOUND=true
                   fi
                 fi
@@ -1196,6 +1218,20 @@ jobs:
             else
               echo "ERROR: Static directory is empty or missing!"
               exit 1
+            fi
+            
+            # CRITICAL: Ensure CSS files are in build ID folder before starting server
+            # Next.js standalone server expects static files in build ID folder
+            BUILD_ID_FILE="$STANDALONE_DIR/.next/BUILD_ID"
+            if [ -f "$BUILD_ID_FILE" ]; then
+              CURRENT_BUILD_ID=$(cat "$BUILD_ID_FILE" 2>/dev/null | tr -d '[:space:]' || echo "")
+              if [ -n "$CURRENT_BUILD_ID" ] && [ -d "$STATIC_DIR/css" ] && [ ! -d "$STATIC_DIR/$CURRENT_BUILD_ID/css" ]; then
+                echo "CRITICAL: Copying CSS files to build ID folder before starting server..."
+                mkdir -p "$STATIC_DIR/$CURRENT_BUILD_ID/css"
+                cp -r "$STATIC_DIR/css"/* "$STATIC_DIR/$CURRENT_BUILD_ID/css/" 2>/dev/null || true
+                chmod -R 644 "$STATIC_DIR/$CURRENT_BUILD_ID/css"/*.css 2>/dev/null || true
+                echo "✓ CSS files copied to $STATIC_DIR/$CURRENT_BUILD_ID/css"
+              fi
             fi
             
             # Start the server with explicit environment variables
