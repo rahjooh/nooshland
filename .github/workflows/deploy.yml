@@ -1220,17 +1220,36 @@ jobs:
               exit 1
             fi
             
-            # CRITICAL: Ensure CSS files are in build ID folder before starting server
-            # Next.js standalone server expects static files in build ID folder
+            # CRITICAL: Ensure CSS files are accessible from both paths
+            # HTML references _next/static/css/... but Next.js serves from _next/static/{buildId}/css/...
             BUILD_ID_FILE="$STANDALONE_DIR/.next/BUILD_ID"
             if [ -f "$BUILD_ID_FILE" ]; then
               CURRENT_BUILD_ID=$(cat "$BUILD_ID_FILE" 2>/dev/null | tr -d '[:space:]' || echo "")
-              if [ -n "$CURRENT_BUILD_ID" ] && [ -d "$STATIC_DIR/css" ] && [ ! -d "$STATIC_DIR/$CURRENT_BUILD_ID/css" ]; then
-                echo "CRITICAL: Copying CSS files to build ID folder before starting server..."
-                mkdir -p "$STATIC_DIR/$CURRENT_BUILD_ID/css"
-                cp -r "$STATIC_DIR/css"/* "$STATIC_DIR/$CURRENT_BUILD_ID/css/" 2>/dev/null || true
-                chmod -R 644 "$STATIC_DIR/$CURRENT_BUILD_ID/css"/*.css 2>/dev/null || true
-                echo "✓ CSS files copied to $STATIC_DIR/$CURRENT_BUILD_ID/css"
+              if [ -n "$CURRENT_BUILD_ID" ]; then
+                # Ensure CSS files are in build ID folder (where Next.js expects them)
+                if [ -d "$STATIC_DIR/css" ] && [ ! -d "$STATIC_DIR/$CURRENT_BUILD_ID/css" ]; then
+                  echo "CRITICAL: Copying CSS files to build ID folder before starting server..."
+                  mkdir -p "$STATIC_DIR/$CURRENT_BUILD_ID/css"
+                  cp -r "$STATIC_DIR/css"/* "$STATIC_DIR/$CURRENT_BUILD_ID/css/" 2>/dev/null || true
+                  chmod -R 644 "$STATIC_DIR/$CURRENT_BUILD_ID/css"/*.css 2>/dev/null || true
+                  echo "✓ CSS files copied to $STATIC_DIR/$CURRENT_BUILD_ID/css"
+                fi
+                
+                # CRITICAL FIX: Create symlink so root/css points to buildId/css
+                # This allows Next.js to serve CSS from both _next/static/css/ and _next/static/{buildId}/css/
+                if [ -d "$STATIC_DIR/$CURRENT_BUILD_ID/css" ]; then
+                  # Remove existing root css if it's a directory (not a symlink)
+                  if [ -d "$STATIC_DIR/css" ] && [ ! -L "$STATIC_DIR/css" ]; then
+                    echo "Removing existing root css directory to create symlink..."
+                    rm -rf "$STATIC_DIR/css" || true
+                  fi
+                  # Create symlink: root/css -> buildId/css
+                  if [ ! -L "$STATIC_DIR/css" ]; then
+                    echo "Creating symlink: $STATIC_DIR/css -> $STATIC_DIR/$CURRENT_BUILD_ID/css"
+                    ln -sf "$CURRENT_BUILD_ID/css" "$STATIC_DIR/css" 2>/dev/null || true
+                    echo "✓ Symlink created for CSS compatibility"
+                  fi
+                fi
               fi
             fi
             
@@ -1379,6 +1398,13 @@ jobs:
                 ssl_protocols TLSv1.2 TLSv1.3;
                 ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256';
                 ssl_prefer_server_ciphers off;
+                # Serve static files directly from filesystem (bypasses Next.js for better performance)
+                location /_next/static {
+                    alias ${ABS_APP_DIR}/.next/static;
+                    expires 1y;
+                    add_header Cache-Control "public, immutable";
+                    access_log off;
+                }
                 # Proxy to Next.js app on port 4001
                 location / {
                     proxy_pass http://127.0.0.1:${APP_PORT};
@@ -1410,6 +1436,13 @@ jobs:
                 listen 80;
                 listen [::]:80;
                 server_name sphynx.ir www.sphynx.ir;
+                # Serve static files directly from filesystem (bypasses Next.js for better performance)
+                location /_next/static {
+                    alias ${ABS_APP_DIR}/.next/static;
+                    expires 1y;
+                    add_header Cache-Control "public, immutable";
+                    access_log off;
+                }
                 # Proxy to Next.js app on port 4001
                 location / {
                     proxy_pass http://127.0.0.1:${APP_PORT};
