@@ -517,17 +517,35 @@ jobs:
               if [ -d ".next/static/$CURRENT_BUILD_ID/css" ]; then
                 CSS_COUNT=$(ls ".next/static/$CURRENT_BUILD_ID/css" 2>/dev/null | wc -l)
                 echo "✓ Found $CSS_COUNT CSS files in .next/static/$CURRENT_BUILD_ID/css"
+                
+                # Also ensure CSS files are at root if HTML references them without build ID
+                if [ ! -d ".next/static/css" ]; then
+                  echo "Copying CSS files to root for compatibility (HTML may reference CSS without build ID)..."
+                  mkdir -p ".next/static/css"
+                  cp -r ".next/static/$CURRENT_BUILD_ID/css"/* ".next/static/css/" 2>/dev/null || true
+                  echo "✓ CSS files also available at root"
+                fi
               elif [ -d ".next/standalone/.next/static/$CURRENT_BUILD_ID/css" ]; then
                 echo "WARNING: CSS files found in standalone/.next/static instead of .next/static"
                 echo "Copying CSS files to correct location..."
                 mkdir -p ".next/static/$CURRENT_BUILD_ID"
                 cp -r ".next/standalone/.next/static/$CURRENT_BUILD_ID/css" ".next/static/$CURRENT_BUILD_ID/css" || true
                 echo "✓ CSS files copied to .next/static/$CURRENT_BUILD_ID/css"
+                
+                # Also copy to root
+                mkdir -p ".next/static/css"
+                cp -r ".next/static/$CURRENT_BUILD_ID/css"/* ".next/static/css/" 2>/dev/null || true
+                echo "✓ CSS files also available at root"
+              elif [ -d ".next/static/css" ]; then
+                CSS_COUNT=$(ls ".next/static/css" 2>/dev/null | wc -l)
+                echo "✓ Found $CSS_COUNT CSS files at root (HTML references CSS without build ID)"
               else
-                echo "WARNING: No CSS files found for build ID $CURRENT_BUILD_ID"
-                echo "This might cause styling issues"
+                echo "ERROR: No CSS files found anywhere!"
+                echo "This will cause styling issues"
                 echo "Checking what's in static directory:"
                 ls -la ".next/static" | head -10 || true
+                echo "Checking standalone .next/static:"
+                find ".next/standalone/.next" -name "*.css" -type f 2>/dev/null | head -5 || echo "  No CSS files found"
               fi
             fi
           fi
@@ -897,6 +915,86 @@ jobs:
             
             # Database will be auto-initialized on first API call via lib/db.ts
             # which automatically runs migrations on import
+            
+            # Fix static file structure - ensure CSS files are accessible
+            # Next.js may generate HTML that references CSS without build ID (_next/static/css/...)
+            # In that case, CSS files should be at the root of static directory
+            echo "Checking and fixing CSS file structure..."
+            BUILD_ID_FILE="$STANDALONE_DIR/.next/BUILD_ID"
+            if [ -f "$BUILD_ID_FILE" ]; then
+              CURRENT_BUILD_ID=$(cat "$BUILD_ID_FILE" 2>/dev/null | tr -d '[:space:]' || echo "")
+              if [ -n "$CURRENT_BUILD_ID" ]; then
+                echo "Build ID: $CURRENT_BUILD_ID"
+                
+                # Check multiple possible locations for CSS files
+                CSS_FOUND=false
+                
+                # 1. Check build ID folder
+                if [ -d "$STATIC_DIR/$CURRENT_BUILD_ID/css" ]; then
+                  CSS_COUNT=$(ls "$STATIC_DIR/$CURRENT_BUILD_ID/css" 2>/dev/null | wc -l)
+                  if [ "$CSS_COUNT" -gt 0 ]; then
+                    echo "✓ CSS files found in build ID folder: $STATIC_DIR/$CURRENT_BUILD_ID/css ($CSS_COUNT files)"
+                    CSS_FOUND=true
+                    
+                    # Ensure CSS files are also at root (HTML references CSS without build ID)
+                    if [ ! -d "$STATIC_DIR/css" ] || [ "$(ls "$STATIC_DIR/css" 2>/dev/null | wc -l)" -eq 0 ]; then
+                      echo "Copying CSS files to root for compatibility..."
+                      mkdir -p "$STATIC_DIR/css"
+                      cp -r "$STATIC_DIR/$CURRENT_BUILD_ID/css"/* "$STATIC_DIR/css/" 2>/dev/null || true
+                      echo "✓ CSS files copied to root"
+                    fi
+                  fi
+                fi
+                
+                # 2. Check standalone/.next/static
+                if [ "$CSS_FOUND" = false ] && [ -d "$STANDALONE_DIR/.next/static/$CURRENT_BUILD_ID/css" ]; then
+                  CSS_COUNT=$(ls "$STANDALONE_DIR/.next/static/$CURRENT_BUILD_ID/css" 2>/dev/null | wc -l)
+                  if [ "$CSS_COUNT" -gt 0 ]; then
+                    echo "✓ CSS files found in standalone build, copying to static directory..."
+                    mkdir -p "$STATIC_DIR/$CURRENT_BUILD_ID/css"
+                    cp -r "$STANDALONE_DIR/.next/static/$CURRENT_BUILD_ID/css"/* "$STATIC_DIR/$CURRENT_BUILD_ID/css/" 2>/dev/null || true
+                    mkdir -p "$STATIC_DIR/css"
+                    cp -r "$STANDALONE_DIR/.next/static/$CURRENT_BUILD_ID/css"/* "$STATIC_DIR/css/" 2>/dev/null || true
+                    echo "✓ CSS files copied to both locations"
+                    CSS_FOUND=true
+                  fi
+                fi
+                
+                # 3. Check root of static
+                if [ -d "$STATIC_DIR/css" ]; then
+                  CSS_COUNT=$(ls "$STATIC_DIR/css" 2>/dev/null | wc -l)
+                  if [ "$CSS_COUNT" -gt 0 ]; then
+                    echo "✓ CSS files found at root: $STATIC_DIR/css ($CSS_COUNT files)"
+                    CSS_FOUND=true
+                  fi
+                fi
+                
+                # 4. If still not found, search everywhere
+                if [ "$CSS_FOUND" = false ]; then
+                  echo "ERROR: No CSS files found in any expected location!"
+                  echo "  Checked: $STATIC_DIR/$CURRENT_BUILD_ID/css"
+                  echo "  Checked: $STANDALONE_DIR/.next/static/$CURRENT_BUILD_ID/css"
+                  echo "  Checked: $STATIC_DIR/css"
+                  echo "  This will cause the page to appear unstyled"
+                  echo "  Searching for CSS files in entire static directory..."
+                  find "$STATIC_DIR" -name "*.css" -type f 2>/dev/null | head -5 || echo "  No CSS files found"
+                  echo "  Searching in standalone directory..."
+                  find "$STANDALONE_DIR/.next" -name "*.css" -type f 2>/dev/null | head -5 || echo "  No CSS files found"
+                fi
+              fi
+            else
+              echo "Note: BUILD_ID file not found, checking for CSS at root..."
+              if [ -d "$STATIC_DIR/css" ]; then
+                CSS_COUNT=$(ls "$STATIC_DIR/css" 2>/dev/null | wc -l)
+                if [ "$CSS_COUNT" -gt 0 ]; then
+                  echo "✓ Found $CSS_COUNT CSS files at root"
+                else
+                  echo "WARNING: CSS directory exists but is empty"
+                fi
+              else
+                echo "WARNING: No CSS directory found at root"
+              fi
+            fi
             echo "Database will be auto-initialized on first API call"
             
             # Install certbot for SSL certificate management (if not already installed)
@@ -984,12 +1082,17 @@ jobs:
                   if [ -d "$STATIC_DIR/$CURRENT_BUILD_ID/css" ]; then
                     echo "  ✓ CSS directory found in build ID folder"
                   elif [ -d "$STATIC_DIR/css" ]; then
-                    echo "  WARNING: CSS directory is at root of static, not in build ID folder"
-                    echo "  This suggests a build structure mismatch"
+                    echo "  INFO: CSS directory is at root of static (this is OK if HTML references CSS without build ID)"
                     echo "  CSS files at: $STATIC_DIR/css"
-                    echo "  Expected at: $STATIC_DIR/$CURRENT_BUILD_ID/css"
+                    CSS_COUNT=$(ls "$STATIC_DIR/css" 2>/dev/null | wc -l)
+                    echo "  CSS file count: $CSS_COUNT"
+                    if [ "$CSS_COUNT" -eq 0 ]; then
+                      echo "  WARNING: CSS directory exists but is empty!"
+                    fi
                   else
-                    echo "  WARNING: No CSS directory found"
+                    echo "  ERROR: No CSS directory found anywhere!"
+                    echo "  This will cause styling issues. Checking for CSS files in other locations..."
+                    find "$STATIC_DIR" -name "*.css" -type f 2>/dev/null | head -5 || echo "  No CSS files found"
                   fi
                 else
                   echo "WARNING: Static files for build ID '$CURRENT_BUILD_ID' not found in static directory"
