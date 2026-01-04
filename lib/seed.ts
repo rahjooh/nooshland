@@ -3,8 +3,8 @@ import { runMigrations } from './migrations'
 
 export function seedDatabase() {
   try {
-    // Run migrations first
-    runMigrations()
+    // Run migrations first (pass db instance)
+    runMigrations(db)
 
     // Check if menu items already exist
     try {

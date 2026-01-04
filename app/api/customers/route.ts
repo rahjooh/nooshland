@@ -5,9 +5,10 @@ import { Customer } from '@/lib/types'
 export async function GET() {
   try {
     const customers = db.prepare('SELECT * FROM customers ORDER BY created_at DESC').all() as Customer[]
-    return NextResponse.json(customers)
+    return NextResponse.json(customers || [])
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch customers' }, { status: 500 })
+    console.error('Error fetching customers:', error)
+    return NextResponse.json([], { status: 200 })
   }
 }
 

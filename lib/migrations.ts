@@ -1,6 +1,6 @@
-import db from './db'
+import Database from 'better-sqlite3'
 
-export function runMigrations() {
+export function runMigrations(db: Database) {
   try {
     // Customers table
     db.exec(`

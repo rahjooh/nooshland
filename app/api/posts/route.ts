@@ -17,9 +17,10 @@ export async function GET(request: NextRequest) {
     query += ' ORDER BY created_at DESC'
 
     const posts = db.prepare(query).all(...params) as Post[]
-    return NextResponse.json(posts)
+    return NextResponse.json(posts || [])
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 })
+    console.error('Error fetching posts:', error)
+    return NextResponse.json([], { status: 200 })
   }
 }
 

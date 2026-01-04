@@ -8,8 +8,8 @@ async function initDatabase() {
   console.log('Initializing database...')
   
   try {
-    // Run migrations
-    const migrationSuccess = runMigrations()
+    // Run migrations (pass db instance)
+    const migrationSuccess = runMigrations(db)
     if (!migrationSuccess) {
       console.error('Migration failed')
       process.exit(1)

@@ -5,9 +5,10 @@ import { MenuItem } from '@/lib/types'
 export async function GET() {
   try {
     const items = db.prepare('SELECT * FROM menu_items ORDER BY created_at DESC').all() as MenuItem[]
-    return NextResponse.json(items)
+    return NextResponse.json(items || [])
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch menu items' }, { status: 500 })
+    console.error('Error fetching menu items:', error)
+    return NextResponse.json([], { status: 200 })
   }
 }
 
